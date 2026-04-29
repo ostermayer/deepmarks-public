@@ -1,0 +1,35 @@
+{
+  "name": "deepmarks-archive-worker",
+  "version": "0.1.0",
+  "description": "Deepmarks archive worker — produces archive blobs (Wayback first, Playwright fallback), encrypts per-archive (private tier), uploads to Blossom + mirrors.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.4.0",
+    "@noble/hashes": "^1.4.0",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.4.0",
+    "lightning": "^10.0.0",
+    "nostr-tools": "^2.7.0",
+    "pino": "^9.0.0",
+    "playwright": "^1.45.0",
+    "single-file-cli": "^2.0.83",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.4"
+  }
+}

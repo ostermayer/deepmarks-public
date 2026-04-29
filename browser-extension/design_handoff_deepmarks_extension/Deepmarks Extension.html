@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deepmarks · browser extension design</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1a1a1a; }
+  body { min-height: 100vh; }
+  .tabs { position: sticky; top: 0; z-index: 50; display: flex; gap: 0; background: #fbfaf7; border-bottom: 1px solid #e6e2d8; padding: 0 16px; align-items: center; }
+  .tabs h1 { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; margin: 0 18px 0 0; letter-spacing: -0.02em; display: flex; align-items: center; gap: 7px; color: #ff6b5a; }
+  .tab { padding: 14px 14px; font-size: 12.5px; color: #827d72; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 500; }
+  .tabs .meta { margin-left: auto; font-family: ui-monospace, monospace; font-size: 10.5px; color: #827d72; letter-spacing: 0.06em; text-transform: uppercase; }
+  .view { display: none; }
+  .view.active { display: block; }
+  #proto-wrap { height: calc(100vh - 47px); }
+  #canvas-wrap { height: calc(100vh - 47px); }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <h1>
+    <svg width="14" height="14" viewBox="0 0 32 32" shape-rendering="crispEdges">
+      <rect x="8" y="4" width="2" height="24" fill="#ff6b5a"/>
+      <rect x="10" y="6" width="4" height="2" fill="#ff6b5a"/>
+      <rect x="10" y="8" width="8" height="2" fill="#ff6b5a"/>
+      <rect x="10" y="10" width="12" height="2" fill="#ff6b5a"/>
+      <rect x="10" y="12" width="14" height="2" fill="#ff6b5a"/>
+      <rect x="10" y="14" width="12" height="2" fill="#ff6b5a"/>
+      <rect x="10" y="16" width="8" height="2" fill="#ff6b5a"/>
+      <rect x="10" y="18" width="4" height="2" fill="#ff6b5a"/>
+    </svg>
+    deepmarks.org
+  </h1>
+  <div class="tab active" data-view="proto">Prototype</div>
+  <div class="tab" data-view="canvas">All screens</div>
+  <div class="meta">browser extension · v0.1 design</div>
+</div>
+
+<div id="proto-wrap" class="view active">
+  <div id="proto-root" style="width:100%;height:100%"></div>
+</div>
+
+<div id="canvas-wrap" class="view">
+  <div id="canvas-root" style="width:100%;height:100%"></div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById((t.dataset.view === 'proto' ? 'proto' : 'canvas') + '-wrap').classList.add('active');
+    });
+  });
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="popup-base.jsx"></script>
+<script type="text/babel" src="popup-screens-1.jsx"></script>
+<script type="text/babel" src="popup-screens-2.jsx"></script>
+<script type="text/babel" src="popup-screens-3.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+
+</body>
+</html>

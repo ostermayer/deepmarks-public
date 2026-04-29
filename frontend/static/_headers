@@ -1,0 +1,28 @@
+# Cloudflare Pages _headers — defence-in-depth for the SPA origin.
+#
+# The localStorage nsec persistence (see lib/stores/session.ts) makes any
+# same-origin script read full account control. The actual Content-
+# Security-Policy is now emitted by SvelteKit as a <meta http-equiv> tag
+# at build time (see kit.csp in svelte.config.js) — that path can hash
+# our inline bootstrap scripts so we don't have to fall back to
+# 'unsafe-inline'. Setting CSP here too creates a duplicate-policy
+# situation that's confusing to debug and hash-incompatible (CF Pages
+# doesn't know about the build-time hashes), so this file owns just
+# the non-CSP security headers.
+
+/*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: interest-cohort=(), browsing-topics=()
+  X-Frame-Options: DENY
+
+# NIP-05 verification: clients fetch /.well-known/nostr.json from any
+# origin to check that <name>@<domain> resolves to the claimed pubkey.
+# Without CORS, the cross-origin XHR fails and the verification badge
+# stays grey. Content-Type explicit so CF Pages doesn't sniff to
+# octet-stream (which some clients would treat as a verification fail).
+/.well-known/nostr.json
+  Access-Control-Allow-Origin: *
+  Content-Type: application/json
+  Cache-Control: public, max-age=300

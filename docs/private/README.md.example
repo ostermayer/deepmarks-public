@@ -1,0 +1,38 @@
+# docs/private — operator-only runbook
+
+Copy this file to `docs/private/README.md` (or any filename under
+`docs/private/`) and fill in the specifics. Everything under
+`docs/private/` is gitignored **except** this example. The actual
+runbook never ships to GitHub.
+
+Use this directory for:
+
+- Exact public IPs of production boxes (also lives in `deploy/.env.local`)
+- The real Lightning addresses you're hosting (`zap@yourdomain`, `personal@yourdomain`)
+- The brand + personal npubs (hex or bech32)
+- BTCPay store id, instance URL, webhook URL
+- Linode Object Storage bucket names + region
+- Exact Voltage node hostname + macaroon path
+- Cloudflare Firewall rule names you maintain
+- Any account / service info that's inconvenient to look up later
+
+## Suggested file layout inside docs/private/
+
+| File | Contents |
+|---|---|
+| `README.md`    | index + table of contents |
+| `hosts.md`     | Box A/B/C public IPs, VPC IPs, hostnames, SSH one-liners |
+| `identities.md`| brand + personal npubs + hex, which nsec file holds which |
+| `lightning.md` | Voltage hostname, macaroon path, BTCPay store id, webhook secret rotation notes |
+| `storage.md`   | Linode bucket names, Blossom mirror URLs, archive retention policy |
+| `playbooks.md` | "when X breaks, do Y" — incident runbook |
+
+## Discipline
+
+- Never paste a **private key** (nsec, macaroon, access-key-secret) in
+  here — those live only in `.env` files or on the relevant box. This
+  directory is for *pointers* and *references*, not secrets.
+- Keep a copy in 1Password / Bitwarden too — if the laptop dies,
+  gitignored files die with it.
+- Treat as append-only during normal work; do a tidy-up pass
+  periodically so the runbook stays scannable.

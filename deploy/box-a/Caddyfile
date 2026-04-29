@@ -1,0 +1,48 @@
+# Caddy on Box A terminates TLS for three hostnames and reverse-proxies
+# each to the right backend inside the docker network. Let's Encrypt certs
+# are issued + renewed automatically.
+
+{
+  email admin@deepmarks.org
+}
+
+# Defence-in-depth response headers shared by every site below.
+# - HSTS: lock the browser to https for 2 years.
+# - nosniff: disable MIME-type guessing on responses.
+# - Referrer-Policy: don't leak full URLs to outbound links.
+# - Permissions-Policy: deny browser features we never use.
+# - X-Frame-Options/frame-ancestors: prevent clickjacking on the API
+#   origin (CSP for the SPA itself ships separately via Cloudflare).
+(security_headers) {
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "interest-cohort=(), browsing-topics=()"
+    X-Frame-Options "DENY"
+    Content-Security-Policy "frame-ancestors 'none'"
+    -Server
+  }
+}
+
+# ── API (payment-proxy: invoices, zaps, search, /api/v1, LNURL) ─────────
+# The bare apex deepmarks.org is reserved for the frontend (Cloudflare Pages).
+# Box A only handles api.deepmarks.org.
+api.deepmarks.org {
+  import security_headers
+  encode zstd gzip
+  reverse_proxy payment-proxy:4000
+}
+
+# ── Nostr relay (read-open, write-restricted by kind) ───────────────────
+relay.deepmarks.org {
+  import security_headers
+  reverse_proxy strfry:7777
+}
+
+# ── Blossom blob server (public read, BUD-01 auth on PUT/DELETE) ────────
+blossom.deepmarks.org {
+  import security_headers
+  encode zstd gzip
+  reverse_proxy blossom-server:3000
+}

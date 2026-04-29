@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# deepmarks-resource-check — host-level resource alerter.
+#
+# Runs on every box via cron (15 min). Alerts on:
+#   - Disk > 80% on any non-tmpfs partition
+#   - Memory > 90%
+#   - Container restart count > 3 in last hour (per-container key)
+#   - Voltage LND macaroon expiry < 30 days (Box A only — silent skip
+#     when /etc/deepmarks-monitoring.env doesn't define VOLTAGE_MACAROON_PATH)
+
+set -euo pipefail
+
+DISK_PCT_LIMIT=80
+MEM_PCT_LIMIT=90
+RESTART_LIMIT=3
+MACAROON_DAYS_WARN=30
+
+# ── disk ───────────────────────────────────────────────────────────────
+df -P --output=source,pcent,target -x tmpfs -x devtmpfs -x squashfs 2>/dev/null \
+| tail -n +2 | while read -r src pct mount; do
+  pct_num="${pct%\%}"
+  if [ "$pct_num" -ge "$DISK_PCT_LIMIT" ]; then
+    deepmarks-alert warning "disk-$src" \
+      "disk $mount at ${pct} on $(hostname)" \
+      "Filesystem $src mounted at $mount is at $pct of capacity." \
+      "Investigate large directories: du -sh $mount/* | sort -h | tail -10"
+  fi
+done
+
+# ── memory ─────────────────────────────────────────────────────────────
+mem_used_pct=$(free | awk '/^Mem:/ {printf "%d", ($2-$7)*100/$2}')
+if [ "$mem_used_pct" -ge "$MEM_PCT_LIMIT" ]; then
+  deepmarks-alert warning "mem-pressure" \
+    "memory at ${mem_used_pct}% on $(hostname)" \
+    "Available memory below threshold. Check 'docker stats' for the heaviest container."
+fi
+
+# ── container restart counts ──────────────────────────────────────────
+if command -v docker >/dev/null 2>&1; then
+  docker ps --format '{{.Names}}' | while read -r name; do
+    [ -z "$name" ] && continue
+    rc=$(docker inspect "$name" --format '{{.RestartCount}}' 2>/dev/null || echo 0)
+    started=$(docker inspect "$name" --format '{{.State.StartedAt}}' 2>/dev/null || echo "")
+    if [ -n "$started" ] && [ "$rc" -gt 0 ]; then
+      # Only flag containers whose RestartCount climbed AND whose last
+      # start was inside the last hour (so a long-stable container with
+      # historical restarts doesn't keep alerting).
+      started_epoch=$(date -d "$started" +%s 2>/dev/null || echo 0)
+      now_epoch=$(date +%s)
+      age=$(( now_epoch - started_epoch ))
+      if [ "$rc" -ge "$RESTART_LIMIT" ] && [ "$age" -lt 3600 ]; then
+        deepmarks-alert warning "restart-$name" \
+          "container $name restarted $rc times" \
+          "Container $name on $(hostname) has RestartCount=$rc and last started ${age}s ago." \
+          "Last logs: docker logs --tail=50 $name"
+      fi
+    fi
+  done
+fi
+
+# ── voltage macaroon expiry (Box A only) ──────────────────────────────
+# Macaroons issued by LND don't carry a built-in expiry by default; they
+# expire when the LND-side caveats say so or when the operator rotates.
+# We can't inspect the macaroon contents from here without lncli, so the
+# simplest signal is "the file's mtime is older than N days" — which
+# usually means it was last rotated then. Operator can ignore this if
+# the macaroon is intentionally long-lived.
+if [ -n "${VOLTAGE_MACAROON_PATH:-}" ] && [ -f "$VOLTAGE_MACAROON_PATH" ]; then
+  age_days=$(( ( $(date +%s) - $(stat -c %Y "$VOLTAGE_MACAROON_PATH") ) / 86400 ))
+  threshold=$(( 365 - MACAROON_DAYS_WARN ))
+  if [ "$age_days" -ge "$threshold" ]; then
+    deepmarks-alert info "voltage-macaroon-age" \
+      "Voltage macaroon ${age_days} days old" \
+      "Consider rotating before LND-side TTL hits, or confirm this macaroon is configured as long-lived."
+  fi
+fi

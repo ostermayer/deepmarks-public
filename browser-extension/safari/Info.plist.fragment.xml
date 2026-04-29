@@ -1,0 +1,29 @@
+<!--
+  Safari extension Info.plist fragment.
+
+  Merge these keys into the auto-generated Info.plist for the
+  `Deepmarks Extension` target after `xcrun safari-web-extension-converter`
+  has scaffolded the project. Sets the principal-class to our
+  KeychainBridge so the native messaging messages route correctly,
+  and declares the Keychain access group used by both the host app
+  and the extension.
+
+  Path in Xcode: Project Navigator → Deepmarks Extension → Info.plist →
+  open as Source → paste these inside <NSExtension> as siblings of
+  the existing keys.
+-->
+<key>NSExtension</key>
+<dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.Safari.web-extension</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>$(PRODUCT_MODULE_NAME).KeychainBridge</string>
+</dict>
+
+<!-- Add to the project's entitlements file, NOT Info.plist: -->
+<!--
+<key>keychain-access-groups</key>
+<array>
+    <string>$(AppIdentifierPrefix)org.deepmarks.extension.keychain</string>
+</array>
+-->

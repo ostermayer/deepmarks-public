@@ -1,0 +1,68 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+!.env.production
+# deploy/.env.local holds box SSH targets — never commit, but do keep
+# the template tracked so forkers know what fields to fill in.
+!.env.local.example
+*.macaroon
+*key*.txt
+*api*.txt
+*api*.key
+*token*.txt
+# nsec backup files (exports, dumps, hand-saves) — match extensions
+# people actually save them under, not the substring 'nsec' which
+# silently blocks legitimate source files like nsec-store.ts.
+*nsec*.txt
+*nsec*.json
+*nsec*.bak
+*nsec*.csv
+*nsec*.key
+*secret*
+redis.txt
+*.pem
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+.svelte-kit/
+.vite/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+.cursorrules
+
+# Sync / dev
+.stfolder
+.dev-logs/
+
+# Claude Code state
+.claude/
+
+# Operator-specific runbooks — real IPs, LN addresses, BTCPay store
+# ids, bucket names, anything useful to the operator but not the
+# world. Tracked template at docs/private/README.md.example shows
+# what belongs here; actual notes stay local only.
+docs/private/*
+!docs/private/README.md.example

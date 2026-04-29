@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ff6b5a" />
+    <meta name="description" content="Bookmarks for the open web. A Nostr client for social bookmarking with Lightning-funded permanent archives." />
+    <!-- Theme bootstrap — externalized to static/theme-bootstrap.js so
+         CSP `script-src 'self'` covers it. Inline scripts can't be
+         covered by 'self' and SvelteKit's csp.mode='auto' doesn't reach
+         into app.html, so this small indirection keeps the CSP tight. -->
+    <script src="%sveltekit.assets%/theme-bootstrap.js"></script>
+    <!-- Auth redirect — when a persisted session hint exists and the
+         user is on the marketing home, jump straight to /app before
+         the landing markup paints. Eliminates the brief landing-then-
+         redirect flash that the in-component onMount couldn't prevent. -->
+    <script src="%sveltekit.assets%/auth-redirect.js"></script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

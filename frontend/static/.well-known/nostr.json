@@ -1,0 +1,13 @@
+{
+  "names": {
+    "deepmarks": "2944e915ba71cf0fc19f5dda048ce053a87c01fd7478b179330a17edca4ce2f4"
+  },
+  "relays": {
+    "2944e915ba71cf0fc19f5dda048ce053a87c01fd7478b179330a17edca4ce2f4": [
+      "wss://relay.deepmarks.org",
+      "wss://relay.damus.io",
+      "wss://nos.lol",
+      "wss://relay.primal.net"
+    ]
+  }
+}

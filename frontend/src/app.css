@@ -1,0 +1,235 @@
+/* Self-hosted webfonts via @fontsource/*. Previously loaded from
+   fonts.googleapis.com; moved in-bundle because content blockers
+   commonly pattern-match on that host and the fallback (system fonts)
+   broke the layout. Third-party fetches on page load = more surface
+   for user privacy tools to break. */
+@import '@fontsource/space-grotesk/400.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/vt323/400.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────
+   Deepmarks design tokens — copied verbatim from MVP/deepmarks/*.html
+   so the SvelteKit app matches the mockups pixel-for-pixel.
+   Do not change values without updating the HTML mockups too.
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+  --paper: #ffffff;
+  --surface: #ffffff;
+  --paper-warm: #f4f7fa;
+  --paper-warmer: #e8eff5;
+  --save-tint: #fff9f7;
+  --archive-tint-top: #fff9f7;
+  --archive-tint-bot: #fff4f0;
+  --ink: #0d3e5c;
+  --ink-deep: #052a44;
+  --rule: #d8e1e8;
+  --muted: #6b8198;
+  --link: #0577b6;
+  --visited: #7a3f9c;
+  --coral: #ff6b5a;
+  --coral-soft: #ffd9d2;
+  --coral-deep: #e04a3a;
+  --on-coral: #ffffff;
+  --zap: #f59e0b;
+  --zap-soft: #fef3c7;
+  --archive: #0a8754;
+  --archive-soft: #cdf0de;
+  --shadow: rgba(13, 62, 92, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #0c1622;
+    --surface: #14202e;
+    --paper-warm: #1a2838;
+    --paper-warmer: #253449;
+    --save-tint: #2a1d1a;
+    --archive-tint-top: #2a1d1a;
+    --archive-tint-bot: #1f1612;
+    --ink: #e5ebf2;
+    --ink-deep: #f4f7fa;
+    --rule: #2d3e52;
+    --muted: #8498ae;
+    --link: #4ea8d9;
+    --visited: #b88bd8;
+    --coral: #ff7b6b;
+    --coral-soft: #4a2b26;
+    --coral-deep: #ff9887;
+    --on-coral: #1a0f0c;
+    --zap: #fbbf24;
+    --zap-soft: #3a2d08;
+    --archive: #2abb7f;
+    --archive-soft: #1a3a2a;
+    --shadow: rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #0c1622;
+  --surface: #14202e;
+  --paper-warm: #1a2838;
+  --paper-warmer: #253449;
+  --save-tint: #2a1d1a;
+  --archive-tint-top: #2a1d1a;
+  --archive-tint-bot: #1f1612;
+  --ink: #e5ebf2;
+  --ink-deep: #f4f7fa;
+  --rule: #2d3e52;
+  --muted: #8498ae;
+  --link: #4ea8d9;
+  --visited: #b88bd8;
+  --coral: #ff7b6b;
+  --coral-soft: #4a2b26;
+  --coral-deep: #ff9887;
+  --on-coral: #1a0f0c;
+  --zap: #fbbf24;
+  --zap-soft: #3a2d08;
+  --archive: #2abb7f;
+  --archive-soft: #1a3a2a;
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--paper);
+}
+
+body {
+  font-family: 'Space Grotesk', Inter, -apple-system, BlinkMacSystemFont,
+    'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper);
+  margin: 0;
+  padding: 0;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+a:visited {
+  color: var(--visited);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   16-bit accent utilities — opt-in classes layered on top of the
+   minimal Space Grotesk base. Designed to add character without
+   cluttering the rest of the UI.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* `.pixel-press` — hard-offset shadow + click-to-indent press animation.
+   Apply next to `.primary` on hero/high-intent buttons. */
+.pixel-press {
+  box-shadow: 3px 3px 0 var(--ink-deep);
+  transition: transform 60ms ease-out, box-shadow 60ms ease-out;
+}
+.pixel-press:hover:not(:disabled) {
+  box-shadow: 4px 4px 0 var(--ink-deep);
+  transform: translate(-1px, -1px);
+}
+.pixel-press:active:not(:disabled) {
+  box-shadow: 1px 1px 0 var(--ink-deep);
+  transform: translate(2px, 2px);
+}
+.pixel-press:disabled {
+  box-shadow: 3px 3px 0 var(--rule);
+}
+
+/* `.num-retro` — VT323 monospace, tabular, sized up since the font is thin.
+   Only for count / amount displays (sats, save totals, stats rows). */
+.num-retro {
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 1.35em;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* `.pixel-card` — panel with flat border, sharp corners. The hard offset
+   shadow ("backdrop") is revealed on hover to give a subtle lift-off
+   effect without anchoring every card with a drop shadow at rest. */
+.pixel-card {
+  background: var(--surface);
+  border: 2px solid var(--ink-deep);
+  border-radius: 0;
+  box-shadow: 0 0 0 transparent;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+.pixel-card.accent {
+  border-color: var(--coral);
+}
+.pixel-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 var(--ink-deep);
+  text-decoration: none;
+}
+.pixel-card.accent:hover {
+  box-shadow: 4px 4px 0 var(--coral);
+}
+
+/* `.pixel-btn` — button variant; small radius, flat border, shares press
+   animation with .pixel-press. Use on any clickable that isn't a pill. */
+.pixel-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background: var(--surface);
+  color: var(--ink-deep);
+  border: 2px solid var(--ink-deep);
+  border-radius: 0;
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink-deep);
+  transition: transform 60ms ease-out, box-shadow 60ms ease-out;
+}
+.pixel-btn.primary {
+  background: var(--coral);
+  color: var(--on-coral);
+  border-color: var(--coral-deep);
+  box-shadow: 3px 3px 0 var(--coral-deep);
+}
+.pixel-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--ink-deep);
+  text-decoration: none;
+}
+.pixel-btn.primary:hover:not(:disabled) {
+  box-shadow: 4px 4px 0 var(--coral-deep);
+}
+.pixel-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink-deep);
+}
+.pixel-btn.primary:active:not(:disabled) {
+  box-shadow: 1px 1px 0 var(--coral-deep);
+}
+.pixel-btn:disabled {
+  box-shadow: 3px 3px 0 var(--rule);
+  border-color: var(--rule);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+

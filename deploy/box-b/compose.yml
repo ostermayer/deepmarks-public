@@ -1,0 +1,35 @@
+# Box B — archive worker.
+# Pulls jobs from Box A's Redis over the VPC (10.0.0.2:6379).
+# No inbound ports; outbound only for Wayback, Blossom mirrors, S3.
+
+services:
+  archive-worker:
+    build: ../../archive-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@10.0.0.2:6379
+      ARCHIVE_WORKER_NSEC: ${ARCHIVE_WORKER_NSEC}
+      PAYMENT_PROXY_URL: http://10.0.0.2:4000
+      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET}
+      BLOSSOM_PRIMARY_URL: https://blossom.deepmarks.org
+      MAX_CONCURRENT_JOBS: "4"
+      PLAYWRIGHT_NAV_TIMEOUT_MS: "30000"
+      # 120s outer cap — the slow-scroll lazy-load pass alone can take
+      # ~60s on long article pages, plus networkidle waits + the
+      # SingleFile capture step. Was 60s before the render-quality
+      # tightening; jobs were being aborted mid-scroll and capturing
+      # incomplete pages.
+      PLAYWRIGHT_RENDER_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_VIEWPORT: 1280x800
+      # 0 = disable Wayback fast-path. Users paying for an archive
+      # expect their CURRENT view of the page rendered fresh, not a
+      # potentially-90-days-stale Wayback snapshot whose image/JS
+      # capture quality is variable. Wayback was a compute-saver but
+      # render quality > worker compute cost for a paid product.
+      WAYBACK_MAX_AGE_DAYS: "0"
+      WORKER_HEARTBEAT_INTERVAL_MS: "10000"
+      STAGED_BLOB_TTL_SECONDS: "900"
+      LOG_LEVEL: info
+    cap_add:
+      - SYS_ADMIN
+    shm_size: 2g

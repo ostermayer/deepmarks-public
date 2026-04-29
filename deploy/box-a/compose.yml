@@ -1,0 +1,173 @@
+# Box A — public edge.
+# Caddy terminates TLS for api.deepmarks.org, relay.*, blossom.*.
+# (deepmarks.org bare apex is served by Cloudflare Pages — frontend.)
+# Internal services (payment-proxy, redis, meili) are never published to the host.
+# Redis is published to the VPC interface only (10.0.0.2:6379) so Box B can connect.
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [strfry, blossom-server, payment-proxy]
+
+  strfry:
+    build: ./strfry
+    restart: unless-stopped
+    environment:
+      # Used by the writePolicy plugin to:
+      #   - gate kind:1985 (lifetime labels) to the brand pubkey
+      #   - rate-limit other kinds per pubkey
+      #   - extend the kind allowlist (kind:0/1/3/6/7/10002/30023) for
+      #     the brand + personal pubkeys so the project can run a Nostr
+      #     presence on its own relay
+      DEEPMARKS_BRAND_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      DEEPMARKS_PERSONAL_PUBKEY: ${BUNKER_PERSONAL_PUBKEY}
+      STRFRY_RATE_LIMIT_PER_HOUR: ${STRFRY_RATE_LIMIT_PER_HOUR:-200}
+    volumes:
+      - ./strfry/strfry.conf:/etc/strfry.conf:ro
+      - ./strfry/deepmarks.js:/opt/strfry-policies/deepmarks.js:ro
+      - strfry-db:/var/lib/strfry
+    # Bind to the VPC interface only so Box C (the signing bunker) can
+    # reach strfry for NIP-46 messages without those going over the
+    # public internet. Public clients still reach strfry through Caddy
+    # at wss://relay.deepmarks.org (see Caddyfile).
+    ports:
+      - "10.0.0.2:7777:7777"
+
+  blossom-server:
+    image: ghcr.io/hzrd149/blossom-server:master
+    restart: unless-stopped
+    environment:
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${LINODE_ACCESS_KEY}
+      S3_SECRET_KEY: ${LINODE_SECRET_KEY}
+      WRITE_ALLOWLIST_PUBKEYS: ${ARCHIVE_WORKER_PUBKEY}
+
+  payment-proxy:
+    build: ../../payment-proxy
+    restart: unless-stopped
+    # Bind to the VPC interface so Box B's archive-worker can POST
+    # /archive/callback over Linode's private network without going
+    # through Caddy + the public internet. HMAC auth on the callback
+    # already gates who can call it; VPC keeps the surface off the
+    # public internet entirely. Port matches PAYMENT_PROXY_URL on Box B.
+    ports:
+      - "10.0.0.2:4000:4000"
+    environment:
+      VOLTAGE_REST_URL: ${VOLTAGE_REST_URL}
+      VOLTAGE_INVOICE_MACAROON: ${VOLTAGE_INVOICE_MACAROON}
+      # No DEEPMARKS_NSEC on Box A — brand + personal nsecs live on Box C
+      # inside nsecBunker. Payment-proxy authenticates to the bunker with
+      # an ephemeral client keypair (BUNKER_CLIENT_NSEC) below.
+      DEEPMARKS_LN_USERNAME: zap
+      # LN address stays clean: zap@deepmarks.org. The CF Pages
+      # _redirects file proxies /.well-known/lnurlp/* to api.
+      DEEPMARKS_LN_DOMAIN: deepmarks.org
+      # Server-emitted callback URLs and NIP-98 auth URL expectations
+      # must match the host clients actually hit, which is now api.*.
+      PUBLIC_BASE_URL: https://api.deepmarks.org
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+      PORT: "4000"
+      HOST: 0.0.0.0
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      LOG_LEVEL: info
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      INDEXER_RELAY_URL: ws://strfry:7777
+      SEED_PINBOARD_INTERVAL_HOURS: "4"
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Deepmarks <noreply@deepmarks.org>}
+      BTCPAY_URL: ${BTCPAY_URL:-}
+      BTCPAY_STORE_ID: ${BTCPAY_STORE_ID:-}
+      BTCPAY_API_KEY: ${BTCPAY_API_KEY:-}
+      BTCPAY_WEBHOOK_SECRET: ${BTCPAY_WEBHOOK_SECRET:-}
+      ADMIN_PUBKEYS: ${ADMIN_PUBKEYS:-}
+      # Favicon cache (Linode Object Storage). All four must be set or
+      # the /favicon endpoint 503s and the frontend falls back to its
+      # inline icon.
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-southeast-1}
+      FAVICON_BUCKET: ${FAVICON_BUCKET:-}
+      FAVICON_PUBLIC_BASE: ${FAVICON_PUBLIC_BASE:-}
+      LINODE_CIPHERTEXT_BUCKET: ${LINODE_CIPHERTEXT_BUCKET:-ciphertext}
+      # Shared with the blossom-server container above (S3_BUCKET).
+      # Lets the proxy's DELETE /account/archives route remove our
+      # primary's copy of an archive blob directly from S3 without
+      # routing through the worker on Box B (which holds the
+      # uploader-pubkey nsec required for BUD-01 DELETE auth).
+      BLOSSOM_S3_BUCKET: ${S3_BUCKET:-}
+      LINODE_ACCESS_KEY: ${LINODE_ACCESS_KEY:-}
+      LINODE_SECRET_KEY: ${LINODE_SECRET_KEY:-}
+      # WebAuthn relying-party config for passkey-encrypted nsec storage.
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-deepmarks.org}
+      PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-Deepmarks}
+      PASSKEY_ORIGIN: ${PASSKEY_ORIGIN:-https://deepmarks.org}
+      # Bunker client — payment-proxy's key pair for NIP-46 authentication
+      # to the Box C signer. The bunker's permission table authorizes
+      # this pubkey to sign a narrow allowlist of kinds.
+      BUNKER_CLIENT_NSEC: ${BUNKER_CLIENT_NSEC}
+      BUNKER_RELAY_URL: ${BUNKER_RELAY_URL:-ws://strfry:7777}
+      BUNKER_BRAND_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      BUNKER_PERSONAL_PUBKEY: ${BUNKER_PERSONAL_PUBKEY}
+      # Shared secret with archive-worker (Box B) for HMAC-signed
+      # /archive/callback POSTs. Without this passthrough the route
+      # 503s and every archive job's terminal state notification is
+      # dropped — found by the security probe script after batch 2.
+      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET}
+    depends_on: [redis, meilisearch, strfry]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --bind
+      - 0.0.0.0
+      # Durability: AOF on with fsync every second. RDB snapshots on at
+      # the default intervals (every 1h if >=1 change, every 5min if
+      # >=100 changes, every 60s if >=10k changes). Belt-and-suspenders
+      # so a kernel crash loses at most ~1s of writes, and we can still
+      # take coherent point-in-time snapshots for the nightly S3 push.
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - "3600 1 300 100 60 10000"
+    # Bind to the VPC interface only (not the public IP). Box B
+    # reaches Redis via 10.0.0.2:6379 over the VPC.
+    ports:
+      - "10.0.0.2:6379:6379"
+    volumes:
+      - redis-data:/data
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meili-data:/meili_data
+
+volumes:
+  caddy-data:
+  caddy-config:
+  strfry-db:
+  redis-data:
+  meili-data:

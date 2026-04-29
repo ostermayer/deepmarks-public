@@ -1,0 +1,30 @@
+# Box C — nsecBunker signing service.
+# Subscribes to strfry on Box A over the VPC (10.0.0.2:7777), signs
+# allowlisted Nostr event kinds on request from payment-proxy, and
+# publishes responses back through the same relay. The only public
+# port on Box C is 22 (SSH); the bunker never speaks outside the VPC.
+
+services:
+  bunker:
+    build: ../../bunker
+    restart: unless-stopped
+    environment:
+      BUNKER_RELAY_URL: ws://10.0.0.2:7777
+      BUNKER_BRAND_NSEC_PATH: /nsecs/brand.nsec
+      BUNKER_PERSONAL_NSEC_PATH: /nsecs/personal.nsec
+      BUNKER_AUDIT_PATH: /var/log/deepmarks-bunker/audit.jsonl
+      BUNKER_CLIENT_PUBKEY: ${BUNKER_CLIENT_PUBKEY}
+      BUNKER_HOST: 0.0.0.0
+      BUNKER_PORT: "4100"
+      LOG_LEVEL: info
+      NODE_ENV: production
+    volumes:
+      # Nsec files live on the host at /opt/deepmarks-bunker/nsecs/,
+      # chmod 400 owned by bunker:bunker (uid 900). Read-only here.
+      - /opt/deepmarks-bunker/nsecs:/nsecs:ro
+      # Audit log on the host so logrotate + operator tailing work.
+      - /var/log/deepmarks-bunker:/var/log/deepmarks-bunker
+    # No external port binding — Docker's healthcheck runs inside the
+    # container against localhost:4100. Operators curl the audit log +
+    # logs via `docker logs` / `tail` on the host. If a remote probe
+    # becomes useful later, add a bind against the VPC interface here.

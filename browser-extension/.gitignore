@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.zip
+*.xpi
+.DS_Store
+.vite/
+.env*
+!.env.example

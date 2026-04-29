@@ -1,0 +1,19 @@
+{
+  "name": "Deepmarks",
+  "short_name": "Deepmarks",
+  "description": "Bookmarks for the open web. A Nostr client for social bookmarking with Lightning-funded permanent archives.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff6b5a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

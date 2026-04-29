@@ -1,0 +1,38 @@
+{
+  "name": "deepmarks-extension",
+  "version": "1.0.0",
+  "description": "Save bookmarks to deepmarks.org and Nostr relays.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "icons": "mkdir -p public/icons && for s in 16 32 48 128; do sips -s format png -z $s $s public/pennant.svg --out public/icons/pennant-$s.png >/dev/null; done",
+    "build": "tsc -b && vite build",
+    "build:chrome": "BROWSER=chrome vite build",
+    "build:firefox": "BROWSER=firefox vite build",
+    "package:chrome": "npm run build:chrome && cd dist && zip -r ../deepmarks-chrome.zip .",
+    "package:firefox": "npm run build:firefox && cd dist && zip -r ../deepmarks-firefox.zip .",
+    "lint": "eslint . --ext ts,tsx",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.5.0",
+    "light-bolt11-decoder": "^3.2.0",
+    "nostr-tools": "^2.7.2",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@types/chrome": "^0.0.270",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}
