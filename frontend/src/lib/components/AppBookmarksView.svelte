@@ -1,0 +1,210 @@
+<script lang="ts">
+  import { writable } from 'svelte/store';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+  import AppSectionNav from './AppSectionNav.svelte';
+  import Subheader from '$lib/components/Subheader.svelte';
+  import SaveBox from '$lib/components/SaveBox.svelte';
+  import BookmarkList from '$lib/components/BookmarkList.svelte';
+  import type { ParsedBookmark } from '$lib/nostr/bookmarks';
+  import { ownBookmarks, rememberOwnBookmark } from '$lib/stores/own-bookmarks';
+  import { myArchives } from '$lib/stores/my-archives';
+  import { session } from '$lib/stores/session';
+  import { archiveQueueRevision, archiveQueueStats } from '$lib/nostr/archive';
+  import { archiveBackfillStatus, maybeBackfill } from '$lib/nostr/lifetime-archive-backfill';
+
+  const bookmarks = ownBookmarks;
+  let queuedUrls = new Set<string>();
+  let failedUrls = new Set<string>();
+  let unknownQueuedUrls = new Set<string>();
+
+  function handleSaved(event: CustomEvent<{ bookmark: ParsedBookmark; isPublic: boolean }>) {
+    const { bookmark, isPublic } = event.detail;
+    rememberOwnBookmark(bookmark, isPublic);
+  }
+
+  type Sort = 'newest' | 'oldest' | 'title-az' | 'title-za' | 'archived-only';
+  const sort = writable<Sort>('newest');
+  $: requestedView = $page.url.searchParams.get('view');
+  $: if (requestedView === 'archived' && $sort !== 'archived-only') sort.set('archived-only');
+  $: if (requestedView !== 'archived' && $sort === 'archived-only') sort.set('newest');
+
+  function setSort(id: string): void {
+    const next = id as Sort;
+    sort.set(next);
+    if (next === 'archived-only') {
+      void goto('/app/bookmarks?view=archived');
+    } else if ($page.url.searchParams.get('view') === 'archived') {
+      void goto('/app/bookmarks');
+    }
+  }
+
+  function titleFor(bookmark: ParsedBookmark): string {
+    return (bookmark.title || bookmark.url).toLocaleLowerCase();
+  }
+
+  $: {
+    $archiveQueueRevision;
+    const stats = $session.pubkey
+      ? archiveQueueStats($session.pubkey)
+      : { queuedUrls: new Set<string>(), failedUrls: new Set<string>(), unknownUrls: new Set<string>() };
+    queuedUrls = stats.queuedUrls;
+    failedUrls = stats.failedUrls;
+    unknownQueuedUrls = stats.unknownUrls;
+  }
+
+  function hasCompletedArchive(bookmark: ParsedBookmark): boolean {
+    return !!bookmark.blossomHash || !!bookmark.waybackUrl || $myArchives.has(bookmark.url);
+  }
+
+  function hasArchiveWorkflow(bookmark: ParsedBookmark): boolean {
+    return bookmark.archivedForever ||
+      hasCompletedArchive(bookmark) ||
+      queuedUrls.has(bookmark.url) ||
+      failedUrls.has(bookmark.url) ||
+      unknownQueuedUrls.has(bookmark.url);
+  }
+
+  function sortBookmarks(list: ParsedBookmark[], currentSort: Sort): ParsedBookmark[] {
+    const sorted = currentSort === 'archived-only'
+      ? list.filter((x) => hasArchiveWorkflow(x))
+      : [...list];
+    switch (currentSort) {
+      case 'newest':
+      case 'archived-only':
+        sorted.sort((a, b) => b.savedAt - a.savedAt);
+        break;
+      case 'oldest':
+        sorted.sort((a, b) => a.savedAt - b.savedAt);
+        break;
+      case 'title-az':
+        sorted.sort((a, b) => titleFor(a).localeCompare(titleFor(b)));
+        break;
+      case 'title-za':
+        sorted.sort((a, b) => titleFor(b).localeCompare(titleFor(a)));
+        break;
+    }
+    return sorted;
+  }
+
+  $: sortedBookmarks = sortBookmarks($bookmarks, $sort);
+  $: archivedWorkflowBookmarks = $bookmarks.filter((b) => hasArchiveWorkflow(b));
+  $: completedArchiveCount = archivedWorkflowBookmarks.filter((b) => hasCompletedArchive(b)).length;
+  $: queuedArchiveCount = archivedWorkflowBookmarks.filter((b) => !hasCompletedArchive(b) && queuedUrls.has(b.url)).length;
+  $: previousQueueCount = archivedWorkflowBookmarks.filter((b) => !hasCompletedArchive(b) && unknownQueuedUrls.has(b.url)).length;
+  $: failedArchiveCount = archivedWorkflowBookmarks.filter((b) => !hasCompletedArchive(b) && failedUrls.has(b.url)).length;
+  $: waitingArchiveCount = archivedWorkflowBookmarks.filter((b) => !hasCompletedArchive(b) && !queuedUrls.has(b.url) && !unknownQueuedUrls.has(b.url) && !failedUrls.has(b.url)).length;
+  $: currentArchiveStatus = $archiveBackfillStatus.pubkey === $session.pubkey ? $archiveBackfillStatus : null;
+  $: serverQueueCount = currentArchiveStatus
+    ? (currentArchiveStatus.serverPending ?? 0) + (currentArchiveStatus.serverRunning ?? 0)
+    : 0;
+</script>
+
+<svelte:head><title>your bookmarks — Deepmarks</title></svelte:head>
+
+<AppSectionNav active="bookmarks" bookmarksCount={$bookmarks.length} />
+
+<Subheader
+  sorts={[
+    { label: 'newest',          id: 'newest',     current: $sort === 'newest' },
+    { label: 'oldest',          id: 'oldest',     current: $sort === 'oldest' },
+    { label: 'title a-z',       id: 'title-az',   current: $sort === 'title-az' },
+    { label: 'title z-a',       id: 'title-za',   current: $sort === 'title-za' },
+    { label: 'archived only',   id: 'archived-only', current: $sort === 'archived-only' },
+  ]}
+  onSort={setSort}
+/>
+{#if $sort === 'archived-only'}
+  <section class="archive-progress" aria-live="polite">
+    <div>
+      <strong>{completedArchiveCount.toLocaleString()} archived</strong>
+      <span>
+        {#if serverQueueCount > 0}
+          {serverQueueCount.toLocaleString()} queued/running on server
+        {:else}
+          {queuedArchiveCount.toLocaleString()} queued/running
+        {/if}
+        {#if previousQueueCount > 0}
+          · {previousQueueCount.toLocaleString()} queued by older app version
+        {/if}
+        {#if failedArchiveCount > 0}
+          · {failedArchiveCount.toLocaleString()} failed
+        {/if}
+        {#if waitingArchiveCount > 0}
+          · {waitingArchiveCount.toLocaleString()} waiting to queue
+        {/if}
+      </span>
+      {#if $archiveBackfillStatus.pubkey === $session.pubkey && $archiveBackfillStatus.message}
+        <small>{$archiveBackfillStatus.message}</small>
+      {/if}
+    </div>
+    <button type="button" on:click={() => void maybeBackfill(true)}>
+      check archives
+    </button>
+  </section>
+{/if}
+<BookmarkList
+  bookmarks={sortedBookmarks}
+  summaryBookmarks={$bookmarks}
+  archivedCountOverride={completedArchiveCount}
+  paginationKey={$sort}
+  loading={true}
+  showStats={true}
+  freezeFeed={false}
+  emptyMessage={$sort === 'archived-only' ? 'no archived bookmarks yet — toggle "archive" on save' : 'no bookmarks yet — paste a URL to save your first'}
+>
+  <SaveBox slot="prepend" on:saved={handleSaved} />
+</BookmarkList>
+
+<style>
+  .archive-progress {
+    max-width: 980px;
+    margin: 0 24px 12px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--archive);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+  }
+  .archive-progress div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .archive-progress strong {
+    color: var(--ink-deep);
+    font-family: 'Space Grotesk', Inter, sans-serif;
+  }
+  .archive-progress span,
+  .archive-progress small {
+    color: var(--muted);
+  }
+  .archive-progress button {
+    flex: 0 0 auto;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .archive-progress button:hover {
+    border-color: var(--coral);
+    color: var(--coral-deep);
+  }
+  @media (max-width: 720px) {
+    .archive-progress {
+      margin: 0 20px 12px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ff6b5a" />
+    <meta name="description" content="Bookmarks for the open web. A Nostr client for social bookmarking with Lightning-funded permanent archives." />
+    <!-- Theme bootstrap — externalized to static/theme-bootstrap.js so
+         CSP `script-src 'self'` covers it. Inline scripts can't be
+         covered by 'self' and SvelteKit's csp.mode='auto' doesn't reach
+         into app.html, so this small indirection keeps the CSP tight. -->
+    <script src="%sveltekit.assets%/theme-bootstrap.js"></script>
+    <!-- Auth redirect — when a persisted session hint exists and the
+         user is on the marketing home, jump straight to /app/bookmarks before
+         the landing markup paints. Eliminates the brief landing-then-
+         redirect flash that the in-component onMount couldn't prevent. -->
+    <script src="%sveltekit.assets%/auth-redirect.js"></script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div id="boot-shell" style="position: fixed; inset: 0; z-index: 2147483647; background: var(--paper, #fffdf8); color: var(--ink-deep, #052b44); font-family: Inter, system-ui, sans-serif;">
+      <a href="/app/bookmarks" style="position: absolute; left: 24px; top: 20px; display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: 0;">
+        <img src="%sveltekit.assets%/pennant.svg" alt="" width="24" height="24" style="display: block;" />
+        <span>Deepmarks</span>
+      </a>
+      <div style="position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); color: var(--muted, #687b91); font-size: 14px;">
+        loading...
+      </div>
+    </div>
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

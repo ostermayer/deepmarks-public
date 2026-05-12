@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+    <!-- Shared Keychain access group used by the native messaging
+         host in SafariWebExtensionHandler.swift. The host-app
+         entitlements declare the same group so a future "you're
+         signed in" status screen in the host app can read the same
+         keychain item without re-prompting. -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)org.deepmarks.extension.keychain</string>
+    </array>
+</dict>
+</plist>
