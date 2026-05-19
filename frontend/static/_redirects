@@ -1,0 +1,10 @@
+# Cloudflare Pages _redirects.
+#
+# CF Pages's status-200 rewrite is same-domain only — a cross-origin
+# target silently falls through to the SPA catch-all, which is why our
+# Lightning address broke until this was changed to a 302. The LNURL
+# callback URL in the response is already api.deepmarks.org, so step 2
+# of the LNURL-pay flow never touches the apex again; the one 302 hop
+# on step 1 is fine for modern wallets (Alby, Zeus, Phoenix, Damus,
+# Cash App, etc. all follow redirects on well-known).
+/.well-known/lnurlp/* https://api.deepmarks.org/.well-known/lnurlp/:splat 302
