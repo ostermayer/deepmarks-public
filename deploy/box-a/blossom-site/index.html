@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deepmarks Blossom</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #102f46;
+        --muted: #64778d;
+        --line: #d9e2ea;
+        --accent: #f06455;
+        --bg: #fbfcfd;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+      main {
+        width: min(900px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 56px 0 64px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 42px;
+        font-weight: 800;
+        font-size: 32px;
+        line-height: 1;
+      }
+      .flag {
+        width: 34px;
+        height: 34px;
+        border-left: 3px solid var(--accent);
+        position: relative;
+      }
+      .flag::before {
+        content: "";
+        position: absolute;
+        top: 4px;
+        left: 2px;
+        width: 22px;
+        height: 16px;
+        background: var(--accent);
+        clip-path: polygon(0 0, 100% 50%, 0 100%);
+      }
+      h1 {
+        max-width: 760px;
+        margin: 0 0 14px;
+        font-size: clamp(38px, 6vw, 68px);
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+      .lede {
+        max-width: 740px;
+        margin: 0 0 30px;
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1.5;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 12px 34px rgba(16, 47, 70, 0.07);
+      }
+      .details {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: 28px 0;
+      }
+      .detail {
+        border-top: 1px dashed var(--line);
+        padding-top: 14px;
+      }
+      .detail strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .detail span,
+      .panel p {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      code {
+        overflow-wrap: anywhere;
+        color: #0d6ea6;
+        background: #eef5fa;
+        border-radius: 5px;
+        padding: 2px 5px;
+      }
+      footer {
+        margin-top: 38px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      a { color: #0d75ad; }
+      @media (max-width: 680px) {
+        main { padding-top: 28px; }
+        .brand { margin-bottom: 28px; font-size: 27px; }
+        .panel { padding: 18px; }
+        .details { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand"><span class="flag" aria-hidden="true"></span><span>Deepmarks Blossom</span></div>
+      <h1>Archive storage for Deepmarks lifetime members.</h1>
+      <p class="lede">
+        Deepmarks uses Blossom as high-availability storage for archives created by
+        our archive worker. The server is public-read by content hash, but direct
+        uploads are restricted to Deepmarks infrastructure.
+      </p>
+
+      <section class="panel" aria-labelledby="policy-title">
+        <h2 id="policy-title">Archive-only write policy</h2>
+        <p>
+          Users do not upload arbitrary files to this server. When a lifetime member
+          bookmarks a webpage or PDF with archiving enabled, Deepmarks captures the
+          archive and stores the resulting bytes here. If a lifetime member buys the
+          media archive add-on, Deepmarks uses yt-dlp, ffmpeg, or direct-file capture
+          to archive supported bookmarked video and audio pages privately.
+        </p>
+      </section>
+
+      <div class="details">
+        <div class="detail">
+          <strong>Server URL</strong>
+          <span><code>https://blossom.deepmarks.org</code></span>
+        </div>
+        <div class="detail">
+          <strong>Writes</strong>
+          <span>Only the Deepmarks archive worker can upload or delete blobs.</span>
+        </div>
+        <div class="detail">
+          <strong>Archives</strong>
+          <span>Webpages and PDFs are capped at 150 MB. Paid private media archives are capped at 2 GB.</span>
+        </div>
+      </div>
+
+      <footer><a href="https://deepmarks.org">deepmarks.org</a></footer>
+    </main>
+  </body>
+</html>
