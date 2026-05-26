@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTop"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Custom URL scheme: deepmarks://save?url=…
+                 Used by future deep links from notifications, web
+                 fallbacks, and other apps that know our scheme. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="deepmarks" />
+            </intent-filter>
+
+            <!-- NIP-46 mobile pairing links. Clients can open
+                 nostrconnect://… directly into the app; the JS deep-link
+                 router sends the original URI to /app/mobile-signer. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="nostrconnect" />
+                <data android:scheme="bunker" />
+            </intent-filter>
+
+            <!-- Android App Links (web → app on signed-in app flows). Pairs with
+                 /.well-known/assetlinks.json on deepmarks.org. The
+                 SHA-256 fingerprint in that file gates which signing
+                 key Android trusts to handle these URLs; until the
+                 release key is generated and the fingerprint pasted
+                 in, autoVerify will fail and the URL falls back to
+                 the chooser. That's the right behavior — non-app
+                 users get the website. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="deepmarks.org"
+                      android:pathPrefix="/app/save" />
+                <data android:scheme="https"
+                      android:host="deepmarks.org"
+                      android:pathPrefix="/app/bookmarks" />
+                <data android:scheme="https"
+                      android:host="deepmarks.org"
+                      android:pathPrefix="/app/upgrade" />
+                <data android:scheme="https"
+                      android:host="deepmarks.org"
+                      android:pathPrefix="/app/mobile-signer" />
+                <data android:scheme="https"
+                      android:host="deepmarks.org"
+                      android:pathPrefix="/login" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- NIP-55 Android signer intents. Native Android Nostr
+             clients launch nostrsigner:… with startActivityForResult;
+             this dedicated activity owns the result while the Svelte
+             review screen approves or rejects it. -->
+        <activity
+            android:name=".NostrSignerActivity"
+            android:label="@string/app_name"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity="org.deepmarks.app.signer"
+            android:exported="true">
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="nostrsigner" />
+            </intent-filter>
+        </activity>
+
+        <!-- Android share-sheet receiver. Public shares are signed and
+             POSTed to api.deepmarks.org/publish directly from this native
+             activity, matching the iOS Share Extension fast path. Private
+             shares fall back to the main app because they need the JS
+             NIP-44 private-set rewrite. -->
+        <activity
+            android:name=".ShareActivity"
+            android:label="@string/app_name"
+            android:theme="@style/AppTheme.Share"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".Nip46ForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <provider
+            android:name=".NostrSignerProvider"
+            android:authorities="${applicationId}.GET_PUBLIC_KEY;${applicationId}.SIGN_EVENT;${applicationId}.NIP04_ENCRYPT;${applicationId}.NIP04_DECRYPT;${applicationId}.NIP44_ENCRYPT;${applicationId}.NIP44_DECRYPT;${applicationId}.DECRYPT_ZAP_EVENT;${applicationId}.get_public_key;${applicationId}.sign_event;${applicationId}.nip04_encrypt;${applicationId}.nip04_decrypt;${applicationId}.nip44_encrypt;${applicationId}.nip44_decrypt;${applicationId}.decrypt_zap_event"
+            android:exported="true" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+</manifest>
