@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# deepmarks-alert — operator alerting helper, sovereign + box-local.
+#
+# Sends an email to $ALERT_EMAIL via Resend when invoked, with file-based
+# debouncing so a chatty cron doesn't email-spam. Reads RESEND_API_KEY +
+# ALERT_EMAIL + EMAIL_FROM from /etc/deepmarks-monitoring.env (root-only,
+# chmod 600). Stateless otherwise — no Redis, no Docker assumed.
+#
+# Usage:
+#   deepmarks-alert <severity> <key> <subject> <body...>
+#
+#   severity  : critical | warning | info
+#   key       : stable dedup key — same value collapses to one email per
+#               $DEDUP_SECONDS window (default 600s = 10 min)
+#   subject   : email subject (will be prefixed with [deepmarks][<sev>])
+#   body...   : remaining args joined with newlines as the email body
+
+set -euo pipefail
+
+CONFIG=/etc/deepmarks-monitoring.env
+[ -f "$CONFIG" ] || { echo "deepmarks-alert: missing $CONFIG" >&2; exit 1; }
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+: "${RESEND_API_KEY:?RESEND_API_KEY required in $CONFIG}"
+: "${ALERT_EMAIL:?ALERT_EMAIL required in $CONFIG}"
+: "${EMAIL_FROM:=Deepmarks <noreply@deepmarks.org>}"
+: "${DEDUP_SECONDS:=600}"
+: "${DEDUP_DIR:=/var/lib/deepmarks-alert}"
+
+mkdir -p "$DEDUP_DIR"
+chmod 700 "$DEDUP_DIR"
+
+if [ "$#" -lt 4 ]; then
+  echo "usage: deepmarks-alert <severity> <key> <subject> <body...>" >&2
+  exit 2
+fi
+
+severity="$1"
+key="$2"
+subject="$3"
+shift 3
+body=$(printf '%s\n' "$@")
+
+case "$severity" in
+  critical|warning|info) ;;
+  *) echo "deepmarks-alert: severity must be critical|warning|info" >&2; exit 2 ;;
+esac
+
+# Per-key dedup. The marker file's mtime is compared against the dedup
+# window. A future-modified file (operator clock drift) is treated as
+# fresh. Marker name uses sev+key sha to avoid filename injection.
+marker="$DEDUP_DIR/$(printf '%s:%s' "$severity" "$key" | sha256sum | cut -c1-16)"
+if [ -f "$marker" ]; then
+  age=$(( $(date +%s) - $(stat -c %Y "$marker") ))
+  if [ "$age" -lt "$DEDUP_SECONDS" ] && [ "$age" -ge 0 ]; then
+    exit 0  # silently dedup
+  fi
+fi
+
+# Build email JSON. Use python (always present on alpine? not always —
+# fall back to a hand-rolled escape if needed).
+hostname=$(hostname)
+full_subject="[deepmarks][$severity] $subject"
+full_body=$(printf '%s\n\n— deepmarks alerter\nseverity: %s\nkey: %s\nhost: %s\ntime: %s\n' \
+  "$body" "$severity" "$key" "$hostname" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+
+# JSON-encode the strings without depending on python/jq — escape
+# backslash, double-quote, and control chars that would break JSON.
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+    | awk 'BEGIN{ORS=""} {gsub(/\r/, "\\r"); gsub(/\t/, "\\t"); print; if (NR<2) next; printf "\\n"} END{print ""}' \
+    | sed -e 's/\\n$//'
+}
+# Simpler: prefer jq if installed, else fall back.
+if command -v jq >/dev/null 2>&1; then
+  payload=$(jq -nc \
+    --arg from "$EMAIL_FROM" \
+    --arg to "$ALERT_EMAIL" \
+    --arg subject "$full_subject" \
+    --arg text "$full_body" \
+    '{from:$from, to:$to, subject:$subject, text:$text}')
+else
+  esc_subject=$(printf '%s' "$full_subject" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+  esc_body=$(printf '%s' "$full_body" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+    | awk 'BEGIN{ORS="\\n"} {print}' | sed 's/\\n$//')
+  payload="{\"from\":\"$EMAIL_FROM\",\"to\":\"$ALERT_EMAIL\",\"subject\":\"$esc_subject\",\"text\":\"$esc_body\"}"
+fi
+
+# Send via Resend. Capture http_code so a 5xx surfaces in cron mail.
+http_code=$(curl -sS -o /dev/null -w '%{http_code}' \
+  -X POST 'https://api.resend.com/emails' \
+  -H "Authorization: Bearer $RESEND_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data "$payload")
+
+if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
+  touch "$marker"  # only stamp dedup on actual send
+  exit 0
+else
+  echo "deepmarks-alert: resend returned http $http_code" >&2
+  exit 3
+fi

@@ -1,0 +1,99 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+!.env.production
+# deploy/.env.local holds box SSH targets — never commit, but do keep
+# the template tracked so forkers know what fields to fill in.
+!.env.local.example
+*.macaroon
+*key*.txt
+*api*.txt
+*api*.key
+*token*.txt
+# Web Push VAPID key pair — matches both vapid_pubkey.txt and
+# vapid_priv.txt (the latter is a real secret; pubkey is technically
+# public but no reason to commit either).
+*vapid*
+# nsec backup files (exports, dumps, hand-saves) — match extensions
+# people actually save them under, not the substring 'nsec' which
+# silently blocks legitimate source files like nsec-store.ts.
+*nsec*.txt
+*nsec*.json
+*nsec*.bak
+*nsec*.csv
+*nsec*.key
+archive-worker-nsec.txt
+*secret*
+redis.txt
+*.pem
+*.jks
+*.keystore
+*.p12
+google-services.json
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+.svelte-kit/
+.vite/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+.cursorrules
+
+# Sync / dev
+.stfolder
+.dev-logs/
+
+# Xcode — keep the project file + sources tracked (browser-extension/safari/Deepmarks/),
+# ignore per-user state and build outputs.
+xcuserdata/
+*.xcuserstate
+*.xcuserstatedata
+DerivedData/
+*.xcworkspace/xcuserdata/
+
+# Capacitor — the iOS + Android native shells live under
+# frontend/ios/ and frontend/android/. Keep the project sources
+# tracked, ignore CocoaPods, Gradle outputs, and the generated
+# webview bundle (cap sync regenerates it from frontend/build/).
+frontend/ios/App/Pods/
+frontend/ios/App/App/public/
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/app/src/main/assets/public/
+frontend/android/build/
+frontend/android/local.properties
+frontend/android/.idea/
+frontend/android/captures/
+
+# Claude Code state
+.claude/
+
+# Operator-specific runbooks — real IPs, LN addresses, BTCPay store
+# ids, bucket names, anything useful to the operator but not the
+# world. Tracked template at docs/private/README.md.example shows
+# what belongs here; actual notes stay local only.
+docs/private/*
+!docs/private/README.md.example
