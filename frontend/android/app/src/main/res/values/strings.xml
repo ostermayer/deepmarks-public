@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Deepmarks</string>
+    <string name="title_activity_main">Deepmarks</string>
+    <string name="package_name">org.deepmarks.app</string>
+    <string name="custom_url_scheme">org.deepmarks.app</string>
+</resources>

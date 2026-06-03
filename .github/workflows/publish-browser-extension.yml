@@ -1,0 +1,92 @@
+# Auto-publish the browser extension to Chrome Web Store + Mozilla AMO.
+#
+# Triggers on a git tag of the form `extension-v<semver>` so a release
+# is always intentional (we don't auto-publish every push to main).
+# Bump browser-extension/package.json version, tag it, and push:
+#
+#   cd browser-extension
+#   npm version 1.1.8         # bumps + commits
+#   git tag extension-v1.1.8
+#   git push origin main --tags
+#
+# Required GitHub Actions secrets (Settings → Secrets and variables →
+# Actions on the repo):
+#
+#   Chrome Web Store API:
+#     CHROME_EXTENSION_ID
+#     CHROME_CLIENT_ID
+#     CHROME_CLIENT_SECRET
+#     CHROME_REFRESH_TOKEN
+#
+#   Mozilla AMO Add-on Submission API v5:
+#     AMO_JWT_ISSUER
+#     AMO_JWT_SECRET
+#     AMO_ADDON_SLUG
+#
+# See docs/release.md for the one-time OAuth + JWT setup.
+
+name: Publish browser extension
+
+on:
+  push:
+    tags:
+      - 'extension-v*'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Where to publish'
+        required: true
+        default: 'both'
+        type: choice
+        options: [both, chrome, firefox]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: browser-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: browser-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint + typecheck + test
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
+      - name: Publish to Chrome Web Store
+        if: ${{ github.event.inputs.target != 'firefox' }}
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: npm run publish:chrome
+
+      - name: Publish to Mozilla AMO
+        if: ${{ github.event.inputs.target != 'chrome' }}
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          AMO_ADDON_SLUG: ${{ secrets.AMO_ADDON_SLUG }}
+        run: npm run publish:firefox
+
+      - name: Upload built zips as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-builds-${{ github.ref_name }}
+          path: |
+            browser-extension/chrome/deepmarks-chrome.zip
+            browser-extension/firefox/deepmarks-firefox.zip
+          if-no-files-found: warn
+          retention-days: 90
