@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=400, initial-scale=1" />
+    <title>Deepmarks</title>
+    <style>
+      html, body { margin: 0; padding: 0; }
+      body {
+        width: 400px;
+        height: 560px;
+        background: #fbfaf7;
+        color: #1a1a1a;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        font-size: 14px;
+        line-height: 1.45;
+        overflow: hidden;
+      }
+      #root { width: 100%; height: 100%; }
+      /* Inline outline:none on individual buttons doesn't always win
+         against ::focus-visible in older Chromium builds. Suppress
+         the default focus indicator globally for the popup — the
+         400×560 surface is mouse-driven and our active-state styles
+         already convey selection. Keyboard users still see the
+         system caret in inputs. */
+      button:focus, button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index.html-BPY_tT0I.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/private-bookmarks-LSVrofhS.js">
+  </head>
+  <body>
+    <div id="root">
+      <div style="box-sizing:border-box;height:100%;padding:18px;background:#fbfaf7;color:#827d72;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">
+        <div style="display:flex;align-items:center;gap:8px;color:#c96442;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;">Deepmarks</div>
+        <p style="margin:16px 0 0;font-size:13px;line-height:1.5;">Opening...</p>
+      </div>
+    </div>
+  </body>
+</html>

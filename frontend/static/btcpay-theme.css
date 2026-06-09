@@ -1,0 +1,202 @@
+/*
+ * Deepmarks custom theme for BTCPay Server's V2 checkout page.
+ *
+ * Apply by pasting the public URL of this file into BTCPay:
+ *   Store → Settings → Checkout Appearance → Custom CSS URL
+ *   https://deepmarks.org/btcpay-theme.css
+ *
+ * Matches the Deepmarks palette (coral accent, Space Grotesk wordmark,
+ * ink-on-paper body) and the pixel-card / offset-shadow motif used
+ * throughout deepmarks.org. Only touches variables and a small set of
+ * high-level selectors — we don't re-theme every internal BTCPay
+ * component, so a BTCPay upgrade that renames internals won't break us.
+ */
+
+/* Import the wordmark font so headings look like the rest of Deepmarks. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=VT323&display=swap');
+
+:root {
+  /* Brand colors — pulled straight from frontend/src/app.css light theme. */
+  --btcpay-primary: #ff6b5a;          /* coral */
+  --btcpay-primary-accent: #e04a3a;   /* coral-deep */
+  --btcpay-secondary: #0d3e5c;        /* ink */
+  --btcpay-tertiary: #052a44;         /* ink-deep */
+
+  /* Page chrome. */
+  --btcpay-body-bg: #ffffff;          /* paper */
+  --btcpay-body-text: #0d3e5c;        /* ink */
+  --btcpay-body-text-muted: #6b8198;  /* muted */
+  --btcpay-body-link: #0577b6;
+  --btcpay-body-link-accent: #e04a3a;
+
+  /* Cards / panels. */
+  --btcpay-card-bg: #ffffff;
+  --btcpay-card-border: #052a44;
+  --btcpay-card-text: #0d3e5c;
+
+  /* Borders + rules. */
+  --btcpay-border-color: #d8e1e8;
+  --btcpay-input-bg: #ffffff;
+  --btcpay-input-border: #d8e1e8;
+
+  /* Typography. */
+  --btcpay-font-family-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --btcpay-font-family-heading: 'Space Grotesk', Inter, sans-serif;
+  --btcpay-font-family-monospace: 'VT323', 'Courier New', monospace;
+
+  /* BTCPay also ships a Bootstrap-derived set of legacy vars; override
+     the few that still leak through so paid/unpaid states match our
+     coral accent rather than the default Bootstrap blue. */
+  --btcpay-form-input-focus-color: #e04a3a;
+  --btcpay-btn-primary-bg: #ff6b5a;
+  --btcpay-btn-primary-border: #e04a3a;
+  --btcpay-btn-primary-color: #ffffff;
+  --btcpay-btn-primary-hover-bg: #e04a3a;
+}
+
+/* Body — remove gradient so the checkout lives on flat Deepmarks paper. */
+body,
+#Checkout-v2 {
+  background: #ffffff !important;
+  color: #0d3e5c !important;
+  font-family: var(--btcpay-font-family-main);
+}
+
+/* Main checkout card — adopt the pixel-card motif: square corners, 2px
+   ink border, 4px ink offset shadow. */
+#Checkout-v2 .payment-box,
+.payment-box,
+.store-header,
+.checkout-box {
+  background: #ffffff !important;
+  border: 2px solid #052a44 !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0 #052a44;
+}
+
+/* Headings use Space Grotesk, lowercase (Deepmarks convention). */
+h1, h2, h3, h4,
+#Checkout-v2 h1,
+#Checkout-v2 h2,
+#Checkout-v2 h3 {
+  font-family: var(--btcpay-font-family-heading) !important;
+  font-weight: 600 !important;
+  color: #052a44 !important;
+  letter-spacing: -0.3px;
+}
+
+/* Invoice amount — big retro numeric, matches our price cards. */
+.payment-box .fiat-amount,
+.payment-box .payment-amount,
+.invoice-amount,
+#AmountDue {
+  font-family: var(--btcpay-font-family-monospace) !important;
+  color: #e04a3a !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Primary CTAs. */
+.btn-primary,
+button.btn-primary,
+#Checkout-v2 .btn-primary {
+  background: #ff6b5a !important;
+  border: 2px solid #e04a3a !important;
+  color: #ffffff !important;
+  border-radius: 0 !important;
+  box-shadow: 3px 3px 0 #052a44;
+  font-family: var(--btcpay-font-family-heading);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+}
+.btn-primary:hover,
+button.btn-primary:hover {
+  background: #e04a3a !important;
+  border-color: #e04a3a !important;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 #052a44;
+}
+
+/* Secondary / text buttons — keep subtle. */
+.btn-secondary,
+.btn-outline-secondary {
+  background: transparent !important;
+  border: 1px solid #d8e1e8 !important;
+  color: #0d3e5c !important;
+  border-radius: 100px !important;
+}
+.btn-secondary:hover {
+  border-color: #ff6b5a !important;
+  color: #e04a3a !important;
+}
+
+/* QR code card — keep a square frame with coral hairline. */
+.qr-code,
+#QRCode,
+.qr-container {
+  background: #ffffff !important;
+  border: 1px solid #d8e1e8 !important;
+  border-radius: 0 !important;
+  padding: 12px;
+}
+
+/* Status pill — Settled (green, matches our --archive). */
+.badge.bg-success,
+.status-settled {
+  background: #0a8754 !important;
+  color: #ffffff !important;
+  border-radius: 100px !important;
+}
+
+/* Tabs (e.g. BOLT11 vs BTC-CHAIN switcher). */
+.nav-tabs .nav-link.active,
+.nav-pills .nav-link.active {
+  color: #e04a3a !important;
+  border-bottom-color: #ff6b5a !important;
+  font-weight: 600;
+}
+.nav-tabs .nav-link,
+.nav-pills .nav-link {
+  color: #6b8198;
+}
+.nav-tabs .nav-link:hover {
+  color: #e04a3a !important;
+}
+
+/* Inputs (payment-method search, quantity, etc.). */
+input, select, textarea {
+  background: #ffffff !important;
+  border: 1px solid #d8e1e8 !important;
+  color: #0d3e5c !important;
+  border-radius: 0 !important;
+  font-family: var(--btcpay-font-family-main);
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #ff6b5a !important;
+  outline: 2px solid #ff6b5a !important;
+  outline-offset: -2px;
+}
+
+/* Remove BTCPay's default box-shadow on small containers so our 4px
+   offset shadow reads as the single visual anchor. */
+.shadow,
+.shadow-sm,
+.shadow-lg {
+  box-shadow: none !important;
+}
+
+/* Progress / spinner dots use coral. */
+.spinner-border,
+.progress-bar {
+  color: #ff6b5a !important;
+  background-color: #ff6b5a !important;
+}
+
+/* Footer ("powered by BTCPay Server") — keep but mute. */
+footer,
+.footer,
+.powered-by {
+  color: #6b8198;
+  font-size: 11px;
+}
