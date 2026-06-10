@@ -1,0 +1,59 @@
+# Build the browser extension packages for manual Chrome Web Store and
+# Mozilla AMO upload.
+#
+# Triggers on a git tag of the form `extension-v<semver>` so a release
+# is always intentional (we do not build packages on every push to main).
+# Bump browser-extension/package.json version, tag it, and push:
+#
+#   cd browser-extension
+#   npm version 1.1.8         # bumps + commits
+#   git tag extension-v1.1.8
+#   git push origin main --tags
+#
+# The store submission step is manual: upload the generated zips from
+# browser-extension/chrome/deepmarks-chrome.zip and
+# browser-extension/firefox/deepmarks-firefox.zip.
+
+name: Build browser extension packages
+
+on:
+  push:
+    tags:
+      - 'extension-v*'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: browser-extension
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: browser-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck + test
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Package Chrome and Firefox zips
+        run: npm run package:stores
+
+      - name: Upload built zips as workflow artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: extension-builds-${{ github.ref_name }}
+          path: |
+            browser-extension/chrome/deepmarks-chrome.zip
+            browser-extension/firefox/deepmarks-firefox.zip
+          if-no-files-found: warn
+          retention-days: 90
