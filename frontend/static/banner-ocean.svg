@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Deepmarks banner — 16-bit ocean sunset, 1500×500 (3:1, fits Damus/Primal).
+  ViewBox is 150×50 so each pixel block on output = 10px.
+  Scene-only (no pennant); wordmark uses Space Grotesk so it matches
+  deepmarks.org typography.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1500" height="500"
+     viewBox="0 0 150 50"
+     shape-rendering="crispEdges">
+
+  <!-- ── SKY (twilight gradient, 6 bands) ──────────────────────────── -->
+  <rect x="0" y="0"  width="150" height="4" fill="#2a1b3d"/>
+  <rect x="0" y="4"  width="150" height="3" fill="#4a2856"/>
+  <rect x="0" y="7"  width="150" height="3" fill="#7a3b6b"/>
+  <rect x="0" y="10" width="150" height="3" fill="#b05570"/>
+  <rect x="0" y="13" width="150" height="3" fill="#e08060"/>
+  <rect x="0" y="16" width="150" height="4" fill="#f4a060"/>
+
+  <!-- ── STARS (upper twilight sprinkle) ───────────────────────────── -->
+  <rect x="8"   y="1" width="1" height="1" fill="#ffffff"/>
+  <rect x="14"  y="3" width="1" height="1" fill="#ffffff"/>
+  <rect x="22"  y="2" width="1" height="1" fill="#ffffff"/>
+  <rect x="27"  y="5" width="1" height="1" fill="#ffffff"/>
+  <rect x="36"  y="1" width="1" height="1" fill="#ffffff"/>
+  <rect x="45"  y="4" width="1" height="1" fill="#ffffff"/>
+  <rect x="62"  y="2" width="1" height="1" fill="#ffffff"/>
+  <rect x="78"  y="4" width="1" height="1" fill="#ffffff"/>
+  <rect x="95"  y="1" width="1" height="1" fill="#ffffff"/>
+  <rect x="108" y="3" width="1" height="1" fill="#ffffff"/>
+  <rect x="120" y="2" width="1" height="1" fill="#ffffff"/>
+  <rect x="138" y="3" width="1" height="1" fill="#ffffff"/>
+
+  <!-- ── SUN setting behind horizon (left side now, balances text) ─── -->
+  <rect x="22" y="14" width="16" height="2" fill="#ffd76a"/>
+  <rect x="20" y="16" width="20" height="2" fill="#ffb955"/>
+  <rect x="18" y="18" width="24" height="2" fill="#ff8a55"/>
+  <!-- sun reflection streak on the water -->
+  <rect x="24" y="21" width="12" height="1" fill="#ffb080"/>
+  <rect x="26" y="23" width="8"  height="1" fill="#ffb080"/>
+  <rect x="28" y="25" width="4"  height="1" fill="#ffb080"/>
+  <rect x="29" y="27" width="2"  height="1" fill="#ffb080"/>
+
+  <!-- ── OCEAN bands (lightest at top, deepest at bottom) ──────────── -->
+  <rect x="0" y="20" width="150" height="3"  fill="#3d7ab0"/>
+  <rect x="0" y="23" width="150" height="4"  fill="#1a5077"/>
+  <rect x="0" y="27" width="150" height="5"  fill="#0d3e5c"/>
+  <rect x="0" y="32" width="150" height="7"  fill="#07314a"/>
+  <rect x="0" y="39" width="150" height="11" fill="#052a44"/>
+
+  <!-- ── FOAM CAPS + wave ticks ────────────────────────────────────── -->
+  <rect x="6"   y="28" width="2" height="1" fill="#d8e8f2"/>
+  <rect x="50"  y="30" width="3" height="1" fill="#d8e8f2"/>
+  <rect x="72"  y="29" width="2" height="1" fill="#d8e8f2"/>
+  <rect x="96"  y="31" width="3" height="1" fill="#d8e8f2"/>
+  <rect x="118" y="30" width="2" height="1" fill="#d8e8f2"/>
+  <rect x="132" y="32" width="3" height="1" fill="#d8e8f2"/>
+  <rect x="144" y="29" width="2" height="1" fill="#d8e8f2"/>
+  <rect x="10"  y="35" width="4" height="1" fill="#3a6890"/>
+  <rect x="40"  y="36" width="3" height="1" fill="#3a6890"/>
+  <rect x="68"  y="35" width="4" height="1" fill="#3a6890"/>
+  <rect x="95"  y="37" width="3" height="1" fill="#3a6890"/>
+  <rect x="128" y="35" width="4" height="1" fill="#3a6890"/>
+  <rect x="20"  y="42" width="5" height="1" fill="#0a3551"/>
+  <rect x="55"  y="44" width="4" height="1" fill="#0a3551"/>
+  <rect x="100" y="43" width="5" height="1" fill="#0a3551"/>
+  <rect x="135" y="45" width="4" height="1" fill="#0a3551"/>
+
+  <!-- ── DISTANT ISLAND silhouette (right horizon) ─────────────────── -->
+  <rect x="108" y="18" width="14" height="2" fill="#2a1830"/>
+  <rect x="110" y="16" width="10" height="2" fill="#2a1830"/>
+  <rect x="112" y="14" width="6"  height="2" fill="#2a1830"/>
+  <rect x="114" y="12" width="2"  height="2" fill="#2a1830"/>
+
+  <!-- ── WORDMARK (Space Grotesk, centered) ────────────────────────── -->
+  <text x="75" y="33"
+        text-anchor="middle"
+        font-family="Space Grotesk, Inter, sans-serif"
+        font-size="16"
+        font-weight="700"
+        fill="#ffffff"
+        letter-spacing="-0.6">deepmarks</text>
+
+  <text x="75" y="42"
+        text-anchor="middle"
+        font-family="Space Grotesk, Inter, sans-serif"
+        font-size="4"
+        font-weight="400"
+        fill="#ffb080"
+        letter-spacing="0.2">bookmarks for the open web</text>
+
+</svg>
