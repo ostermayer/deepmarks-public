@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# deepmarks-uptime-check — sovereign external pinger.
+#
+# Lives on Box C and pings the three boxes. Alerts on three consecutive
+# failures so a transient blip doesn't email. State (consecutive failure
+# counter) lives in /var/lib/deepmarks-uptime/.
+#
+# Targets:
+#   - Box A: GET https://api.deepmarks.org/health        (Caddy + payment-proxy)
+#   - Box B: archive-worker health via Box A API         (worker heartbeat,
+#                                                         queue age, in-flight
+#                                                         jobs, audit status)
+#   - Box C: GET http://127.0.0.1:4100/health            (bunker, local)
+#
+# Run via cron every 5 min. The ALERT KEYS are per-target so a Box A
+# outage doesn't suppress a separate Box C outage.
+
+set -euo pipefail
+
+STATE_DIR=/var/lib/deepmarks-uptime
+THRESHOLD=3                # consecutive failures before alerting
+TIMEOUT=10                 # per-probe seconds
+
+mkdir -p "$STATE_DIR"
+chmod 700 "$STATE_DIR"
+
+# ── helpers ────────────────────────────────────────────────────────────
+
+bump_failure() {
+  local target="$1"
+  local f="$STATE_DIR/$target.fail"
+  local n=$(( $(cat "$f" 2>/dev/null || echo 0) + 1 ))
+  echo "$n" > "$f"
+  echo "$n"
+}
+
+reset_failure() {
+  local target="$1"
+  local f="$STATE_DIR/$target.fail"
+  if [ -s "$f" ]; then
+    local was
+    was=$(cat "$f")
+    rm -f "$f"
+    if [ "$was" -ge "$THRESHOLD" ]; then
+      # Recovery: emit an info alert so the operator sees the outage closed.
+      deepmarks-alert info "uptime-recover-$target" \
+        "$target recovered" \
+        "Probe success after $was consecutive failures."
+    fi
+  fi
+}
+
+probe_http() {
+  local name="$1"
+  local url="$2"
+  if curl -sS -o /dev/null --max-time "$TIMEOUT" -w '%{http_code}\n' "$url" 2>/dev/null \
+      | grep -q '^20[02]$'; then
+    reset_failure "$name"
+  else
+    n=$(bump_failure "$name")
+    if [ "$n" -ge "$THRESHOLD" ]; then
+      deepmarks-alert critical "uptime-$name" \
+        "$name unreachable for $n consecutive probes" \
+        "Probe URL: $url" \
+        "Check Caddy + service container on the target box."
+    fi
+  fi
+}
+
+# ── main ───────────────────────────────────────────────────────────────
+
+probe_http "box-a"      "https://api.deepmarks.org/health"
+# Relay WRITE-path probe: /health/relay returns 503 when the publish
+# queue has work but nothing has been forwarded to strfry for 15 min —
+# the failure mode every read-only probe stays green through.
+probe_http "relay-write" "https://api.deepmarks.org/health/relay"
+probe_http "archive-worker" "https://api.deepmarks.org/health/archive"
+probe_http "box-c"      "http://127.0.0.1:4100/health"

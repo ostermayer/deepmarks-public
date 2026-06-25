@@ -1,0 +1,118 @@
+# Caddy on Box A terminates TLS for three hostnames and reverse-proxies
+# each to the right backend inside the docker network. Let's Encrypt certs
+# are issued + renewed automatically.
+
+{
+  email admin@deepmarks.org
+  # rate_limit (caddy-ratelimit plugin) isn't a standard directive, so
+  # give it an explicit place in the handler chain.
+  order rate_limit before reverse_proxy
+}
+
+# Defence-in-depth response headers shared by every site below.
+# - HSTS: lock the browser to https for 2 years.
+# - nosniff: disable MIME-type guessing on responses.
+# - Referrer-Policy: don't leak full URLs to outbound links.
+# - Permissions-Policy: deny browser features we never use.
+# - X-Frame-Options/frame-ancestors: prevent clickjacking on the API
+#   origin (CSP for the SPA itself ships separately via Cloudflare).
+(security_headers) {
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "interest-cohort=(), browsing-topics=()"
+    X-Frame-Options "DENY"
+    Content-Security-Policy "frame-ancestors 'none'"
+    -Server
+  }
+}
+
+# ── API (payment-proxy: invoices, zaps, search, /api/v1, LNURL) ─────────
+# The bare apex deepmarks.org is reserved for the frontend (Cloudflare Pages).
+# Box A only handles api.deepmarks.org.
+api.deepmarks.org {
+  import security_headers
+  encode zstd gzip
+  reverse_proxy payment-proxy:4000
+}
+
+# ── Nostr relay (read-open, write-restricted by kind) ───────────────────
+relay.deepmarks.org {
+  import security_headers
+  reverse_proxy strfry:7777
+}
+
+# ── Blossom blob server (public read, BUD-01 auth on PUT/DELETE) ────────
+blossom.deepmarks.org {
+  encode zstd gzip
+
+  @blossomHome {
+    method GET HEAD
+    path /
+  }
+  handle @blossomHome {
+    header {
+      Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+      X-Content-Type-Options "nosniff"
+      Referrer-Policy "strict-origin-when-cross-origin"
+      Permissions-Policy "interest-cohort=(), browsing-topics=()"
+      X-Frame-Options "DENY"
+      Content-Security-Policy "default-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; base-uri 'none'; img-src 'self' data:; style-src 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'"
+      -Server
+    }
+    root * /srv/blossom-site
+    file_server
+  }
+
+  @blossomWrite method PUT POST DELETE
+  handle @blossomWrite {
+    # Absolute edge cap for Blossom writes. Deepmarks webpage/PDF
+    # archives are capped in the worker at 150 MB; video add-on archives
+    # need a larger ceiling. Only the archive worker is allowed to write,
+    # and the edge rejects anything over 2 GB before it can hit
+    # blossom-server or object storage.
+    request_body {
+      max_size 2GB
+    }
+    forward_auth payment-proxy:4000 {
+      uri /blossom/check-auth
+    }
+    reverse_proxy blossom-server:3000
+  }
+
+  handle {
+    # Per-IP throttle on public blob downloads so a single scraper can't
+    # drive sustained outbound on Box A. 120 req/min/IP is far above any
+    # real archive-viewing session (one blob per archive opened). The
+    # archive worker (Box B) reaches us via blossom.deepmarks.org for
+    # upload-verify + mirror reads, so exempt its public IP — otherwise a
+    # backlog drain would throttle the legitimate pipeline. Exceeding the
+    # limit returns 429.
+    rate_limit {
+      zone blossom_download {
+        match {
+          not remote_ip <box-b-public-ip>
+        }
+        key {remote_host}
+        events 120
+        window 1m
+      }
+    }
+    # Archives are arbitrary third-party pages saved as HTML blobs. Serve
+    # every blob under a locked-down document policy so a malicious
+    # archive cannot execute script, submit forms, make network calls, or
+    # inherit the blossom origin when a user opens it.
+    header {
+      Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+      X-Content-Type-Options "nosniff"
+      Referrer-Policy "strict-origin-when-cross-origin"
+      Permissions-Policy "interest-cohort=(), browsing-topics=()"
+      X-Frame-Options "DENY"
+      Content-Security-Policy "default-src 'none'; script-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'; font-src 'self' data:; media-src 'none'; frame-ancestors 'none'; sandbox"
+      -Server
+      defer
+    }
+    reverse_proxy blossom-server:3000
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["TEAMID.org.deepmarks.app"],
+        "components": [
+          {
+            "/": "/app/save",
+            "comment": "Share-sheet target — open the bookmark form in the native app instead of the website."
+          },
+          {
+            "/": "/app/bookmarks",
+            "comment": "Payment return target — return to the signed-in bookmark feed after hosted checkout."
+          },
+          {
+            "/": "/app/upgrade",
+            "comment": "Lifetime checkout fallback target — resume polling after a paid invoice."
+          }
+        ]
+      }
+    ]
+  },
+  "_comment_for_humans": "Apple Universal Links manifest. After Apple Developer enrollment, replace TEAMID with the 10-character team identifier from developer.apple.com/account → Membership. Then redeploy this file to https://deepmarks.org/.well-known/apple-app-site-association — note: NO file extension, served as application/json with no .json suffix. Apple's CDN scans this on every iOS app install of the matching bundle ID and sets up the link routing automatically. Universal Link routing is opportunistic: the iOS app must already be installed for the OS to bypass Safari; otherwise the URL renders as a normal web page. That's the right behavior for /app/save — non-app users still get the website's prefilled SaveBox."
+}

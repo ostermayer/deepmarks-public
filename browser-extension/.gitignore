@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.zip
+*.xpi
+!chrome/deepmarks-chrome.zip
+!firefox/deepmarks-firefox.zip
+.DS_Store
+.vite/
+.env*
+!.env.example
