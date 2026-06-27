@@ -1,0 +1,21 @@
+use_default_settings: true
+
+server:
+  secret_key: "deepmarks-internal-searxng"
+  image_proxy: false
+  limiter: false
+  method: "GET"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+  formats:
+    - html
+    - json
+
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 6.0
+  pool_connections: 100
+  pool_maxsize: 20

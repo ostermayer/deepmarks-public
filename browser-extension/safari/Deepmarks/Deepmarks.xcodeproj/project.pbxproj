@@ -1,0 +1,999 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		375C29372FA2A00F00E0467A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C29362FA2A00F00E0467A /* AppDelegate.swift */; };
+		375C29392FA2A00F00E0467A /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C29382FA2A00F00E0467A /* SceneDelegate.swift */; };
+		375C293C2FA2A00F00E0467A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 375C293A2FA2A00F00E0467A /* LaunchScreen.storyboard */; };
+		375C293F2FA2A00F00E0467A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 375C293D2FA2A00F00E0467A /* Main.storyboard */; };
+		375C29482FA2A00F00E0467A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C29472FA2A00F00E0467A /* AppDelegate.swift */; };
+		375C294B2FA2A00F00E0467A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 375C29492FA2A00F00E0467A /* Main.storyboard */; };
+		375C29532FA2A00F00E0467A /* Deepmarks Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 375C29522FA2A00F00E0467A /* Deepmarks Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		375C295D2FA2A00F00E0467A /* Deepmarks Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 375C295C2FA2A00F00E0467A /* Deepmarks Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		375C29632FA2A00F00E0467A /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 375C29262FA2A00E00E0467A /* Main.html */; };
+		375C29642FA2A00F00E0467A /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 375C29262FA2A00E00E0467A /* Main.html */; };
+		375C29652FA2A00F00E0467A /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 375C29282FA2A00E00E0467A /* Icon.png */; };
+		375C29662FA2A00F00E0467A /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 375C29282FA2A00E00E0467A /* Icon.png */; };
+		375C29672FA2A00F00E0467A /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 375C29292FA2A00E00E0467A /* Style.css */; };
+		375C29682FA2A00F00E0467A /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 375C29292FA2A00E00E0467A /* Style.css */; };
+		375C29692FA2A00F00E0467A /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 375C292A2FA2A00E00E0467A /* Script.js */; };
+		375C296A2FA2A00F00E0467A /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 375C292A2FA2A00E00E0467A /* Script.js */; };
+		375C296B2FA2A00F00E0467A /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C292B2FA2A00E00E0467A /* ViewController.swift */; };
+		375C296C2FA2A00F00E0467A /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C292B2FA2A00E00E0467A /* ViewController.swift */; };
+		375C296D2FA2A00F00E0467A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 375C292C2FA2A00F00E0467A /* Assets.xcassets */; };
+		375C296E2FA2A00F00E0467A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 375C292C2FA2A00F00E0467A /* Assets.xcassets */; };
+		375C296F2FA2A00F00E0467A /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C292E2FA2A00F00E0467A /* SafariWebExtensionHandler.swift */; };
+		375C29702FA2A00F00E0467A /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375C292E2FA2A00F00E0467A /* SafariWebExtensionHandler.swift */; };
+		375C29882FA2A00F00E0467A /* service-worker-loader.js in Resources */ = {isa = PBXBuildFile; fileRef = 375C29822FA2A00F00E0467A /* service-worker-loader.js */; };
+		375C29892FA2A00F00E0467A /* pennant.svg in Resources */ = {isa = PBXBuildFile; fileRef = 375C29832FA2A00F00E0467A /* pennant.svg */; };
+		375C298A2FA2A00F00E0467A /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 375C29842FA2A00F00E0467A /* icons */; };
+		375C298B2FA2A00F00E0467A /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 375C29852FA2A00F00E0467A /* manifest.json */; };
+		375C298C2FA2A00F00E0467A /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 375C29862FA2A00F00E0467A /* assets */; };
+		375C298D2FA2A00F00E0467A /* src in Resources */ = {isa = PBXBuildFile; fileRef = 375C29872FA2A00F00E0467A /* src */; };
+		375C298E2FA2A00F00E0467A /* service-worker-loader.js in Resources */ = {isa = PBXBuildFile; fileRef = 375C29822FA2A00F00E0467A /* service-worker-loader.js */; };
+		375C298F2FA2A00F00E0467A /* pennant.svg in Resources */ = {isa = PBXBuildFile; fileRef = 375C29832FA2A00F00E0467A /* pennant.svg */; };
+		375C29902FA2A00F00E0467A /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 375C29842FA2A00F00E0467A /* icons */; };
+		375C29912FA2A00F00E0467A /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 375C29852FA2A00F00E0467A /* manifest.json */; };
+		375C29922FA2A00F00E0467A /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 375C29862FA2A00F00E0467A /* assets */; };
+		375C29932FA2A00F00E0467A /* src in Resources */ = {isa = PBXBuildFile; fileRef = 375C29872FA2A00F00E0467A /* src */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		375C29542FA2A00F00E0467A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 375C29202FA2A00E00E0467A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 375C29512FA2A00F00E0467A;
+			remoteInfo = "Deepmarks Extension (iOS)";
+		};
+		375C295E2FA2A00F00E0467A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 375C29202FA2A00E00E0467A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 375C295B2FA2A00F00E0467A;
+			remoteInfo = "Deepmarks Extension (macOS)";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		375C29762FA2A00F00E0467A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				375C29532FA2A00F00E0467A /* Deepmarks Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C297D2FA2A00F00E0467A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				375C295D2FA2A00F00E0467A /* Deepmarks Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		375C29272FA2A00E00E0467A /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = Base; path = Base.lproj/Main.html; sourceTree = "<group>"; };
+		375C29282FA2A00E00E0467A /* Icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Icon.png; sourceTree = "<group>"; };
+		375C29292FA2A00E00E0467A /* Style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = Style.css; sourceTree = "<group>"; };
+		375C292A2FA2A00E00E0467A /* Script.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Script.js; sourceTree = "<group>"; };
+		375C292B2FA2A00E00E0467A /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		375C292C2FA2A00F00E0467A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		375C292E2FA2A00F00E0467A /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+		375C29332FA2A00F00E0467A /* Deepmarks.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Deepmarks.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		375C29362FA2A00F00E0467A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		375C29382FA2A00F00E0467A /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		375C293B2FA2A00F00E0467A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		375C293E2FA2A00F00E0467A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		375C29402FA2A00F00E0467A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		375C29452FA2A00F00E0467A /* Deepmarks.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Deepmarks.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		375C29472FA2A00F00E0467A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		375C294A2FA2A00F00E0467A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		375C294C2FA2A00F00E0467A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		375C294D2FA2A00F00E0467A /* Deepmarks.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Deepmarks.entitlements; sourceTree = "<group>"; };
+		375C29522FA2A00F00E0467A /* Deepmarks Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Deepmarks Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		375C29572FA2A00F00E0467A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		375C295C2FA2A00F00E0467A /* Deepmarks Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Deepmarks Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		375C29612FA2A00F00E0467A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		375C29622FA2A00F00E0467A /* Deepmarks.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Deepmarks.entitlements; sourceTree = "<group>"; };
+		375C29822FA2A00F00E0467A /* service-worker-loader.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = "service-worker-loader.js"; path = "Resources/service-worker-loader.js"; sourceTree = "<group>"; };
+		375C29832FA2A00F00E0467A /* pennant.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = pennant.svg; path = Resources/pennant.svg; sourceTree = "<group>"; };
+		375C29842FA2A00F00E0467A /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = Resources/icons; sourceTree = "<group>"; };
+		375C29852FA2A00F00E0467A /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = Resources/manifest.json; sourceTree = "<group>"; };
+		375C29862FA2A00F00E0467A /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = Resources/assets; sourceTree = "<group>"; };
+		375C29872FA2A00F00E0467A /* src */ = {isa = PBXFileReference; lastKnownFileType = folder; name = src; path = Resources/src; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		375C29302FA2A00F00E0467A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C29422FA2A00F00E0467A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C294F2FA2A00F00E0467A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C29592FA2A00F00E0467A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		375C291F2FA2A00E00E0467A = {
+			isa = PBXGroup;
+			children = (
+				375C29242FA2A00E00E0467A /* Shared (App) */,
+				375C292D2FA2A00F00E0467A /* Shared (Extension) */,
+				375C29352FA2A00F00E0467A /* iOS (App) */,
+				375C29462FA2A00F00E0467A /* macOS (App) */,
+				375C29562FA2A00F00E0467A /* iOS (Extension) */,
+				375C29602FA2A00F00E0467A /* macOS (Extension) */,
+				375C29342FA2A00F00E0467A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		375C29242FA2A00E00E0467A /* Shared (App) */ = {
+			isa = PBXGroup;
+			children = (
+				375C292B2FA2A00E00E0467A /* ViewController.swift */,
+				375C292C2FA2A00F00E0467A /* Assets.xcassets */,
+				375C29252FA2A00E00E0467A /* Resources */,
+			);
+			path = "Shared (App)";
+			sourceTree = "<group>";
+		};
+		375C29252FA2A00E00E0467A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				375C29262FA2A00E00E0467A /* Main.html */,
+				375C29282FA2A00E00E0467A /* Icon.png */,
+				375C29292FA2A00E00E0467A /* Style.css */,
+				375C292A2FA2A00E00E0467A /* Script.js */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		375C292D2FA2A00F00E0467A /* Shared (Extension) */ = {
+			isa = PBXGroup;
+			children = (
+				375C29812FA2A00F00E0467A /* Resources */,
+				375C292E2FA2A00F00E0467A /* SafariWebExtensionHandler.swift */,
+			);
+			path = "Shared (Extension)";
+			sourceTree = "<group>";
+		};
+		375C29342FA2A00F00E0467A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				375C29332FA2A00F00E0467A /* Deepmarks.app */,
+				375C29452FA2A00F00E0467A /* Deepmarks.app */,
+				375C29522FA2A00F00E0467A /* Deepmarks Extension.appex */,
+				375C295C2FA2A00F00E0467A /* Deepmarks Extension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		375C29352FA2A00F00E0467A /* iOS (App) */ = {
+			isa = PBXGroup;
+			children = (
+				375C29362FA2A00F00E0467A /* AppDelegate.swift */,
+				375C29382FA2A00F00E0467A /* SceneDelegate.swift */,
+				375C293A2FA2A00F00E0467A /* LaunchScreen.storyboard */,
+				375C293D2FA2A00F00E0467A /* Main.storyboard */,
+				375C29402FA2A00F00E0467A /* Info.plist */,
+			);
+			path = "iOS (App)";
+			sourceTree = "<group>";
+		};
+		375C29462FA2A00F00E0467A /* macOS (App) */ = {
+			isa = PBXGroup;
+			children = (
+				375C29472FA2A00F00E0467A /* AppDelegate.swift */,
+				375C29492FA2A00F00E0467A /* Main.storyboard */,
+				375C294C2FA2A00F00E0467A /* Info.plist */,
+				375C294D2FA2A00F00E0467A /* Deepmarks.entitlements */,
+			);
+			path = "macOS (App)";
+			sourceTree = "<group>";
+		};
+		375C29562FA2A00F00E0467A /* iOS (Extension) */ = {
+			isa = PBXGroup;
+			children = (
+				375C29572FA2A00F00E0467A /* Info.plist */,
+			);
+			path = "iOS (Extension)";
+			sourceTree = "<group>";
+		};
+		375C29602FA2A00F00E0467A /* macOS (Extension) */ = {
+			isa = PBXGroup;
+			children = (
+				375C29612FA2A00F00E0467A /* Info.plist */,
+				375C29622FA2A00F00E0467A /* Deepmarks.entitlements */,
+			);
+			path = "macOS (Extension)";
+			sourceTree = "<group>";
+		};
+		375C29812FA2A00F00E0467A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				375C29822FA2A00F00E0467A /* service-worker-loader.js */,
+				375C29832FA2A00F00E0467A /* pennant.svg */,
+				375C29842FA2A00F00E0467A /* icons */,
+				375C29852FA2A00F00E0467A /* manifest.json */,
+				375C29862FA2A00F00E0467A /* assets */,
+				375C29872FA2A00F00E0467A /* src */,
+			);
+			name = Resources;
+			path = "Shared (Extension)";
+			sourceTree = SOURCE_ROOT;
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		375C29322FA2A00F00E0467A /* Deepmarks (iOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 375C29772FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks (iOS)" */;
+			buildPhases = (
+				375C292F2FA2A00F00E0467A /* Sources */,
+				375C29302FA2A00F00E0467A /* Frameworks */,
+				375C29312FA2A00F00E0467A /* Resources */,
+				375C29762FA2A00F00E0467A /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				375C29552FA2A00F00E0467A /* PBXTargetDependency */,
+			);
+			name = "Deepmarks (iOS)";
+			packageProductDependencies = (
+			);
+			productName = "Deepmarks (iOS)";
+			productReference = 375C29332FA2A00F00E0467A /* Deepmarks.app */;
+			productType = "com.apple.product-type.application";
+		};
+		375C29442FA2A00F00E0467A /* Deepmarks (macOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 375C297E2FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks (macOS)" */;
+			buildPhases = (
+				375C29412FA2A00F00E0467A /* Sources */,
+				375C29422FA2A00F00E0467A /* Frameworks */,
+				375C29432FA2A00F00E0467A /* Resources */,
+				375C297D2FA2A00F00E0467A /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				375C295F2FA2A00F00E0467A /* PBXTargetDependency */,
+			);
+			name = "Deepmarks (macOS)";
+			packageProductDependencies = (
+			);
+			productName = "Deepmarks (macOS)";
+			productReference = 375C29452FA2A00F00E0467A /* Deepmarks.app */;
+			productType = "com.apple.product-type.application";
+		};
+		375C29512FA2A00F00E0467A /* Deepmarks Extension (iOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 375C29732FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks Extension (iOS)" */;
+			buildPhases = (
+				375C294E2FA2A00F00E0467A /* Sources */,
+				375C294F2FA2A00F00E0467A /* Frameworks */,
+				375C29502FA2A00F00E0467A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Deepmarks Extension (iOS)";
+			packageProductDependencies = (
+			);
+			productName = "Deepmarks Extension (iOS)";
+			productReference = 375C29522FA2A00F00E0467A /* Deepmarks Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		375C295B2FA2A00F00E0467A /* Deepmarks Extension (macOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 375C297A2FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks Extension (macOS)" */;
+			buildPhases = (
+				375C29582FA2A00F00E0467A /* Sources */,
+				375C29592FA2A00F00E0467A /* Frameworks */,
+				375C295A2FA2A00F00E0467A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Deepmarks Extension (macOS)";
+			packageProductDependencies = (
+			);
+			productName = "Deepmarks Extension (macOS)";
+			productReference = 375C295C2FA2A00F00E0467A /* Deepmarks Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		375C29202FA2A00E00E0467A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+				TargetAttributes = {
+					375C29322FA2A00F00E0467A = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					375C29442FA2A00F00E0467A = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					375C29512FA2A00F00E0467A = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					375C295B2FA2A00F00E0467A = {
+						CreatedOnToolsVersion = 16.4;
+					};
+				};
+			};
+			buildConfigurationList = 375C29232FA2A00E00E0467A /* Build configuration list for PBXProject "Deepmarks" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 375C291F2FA2A00E00E0467A;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 375C29342FA2A00F00E0467A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				375C29322FA2A00F00E0467A /* Deepmarks (iOS) */,
+				375C29442FA2A00F00E0467A /* Deepmarks (macOS) */,
+				375C29512FA2A00F00E0467A /* Deepmarks Extension (iOS) */,
+				375C295B2FA2A00F00E0467A /* Deepmarks Extension (macOS) */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		375C29312FA2A00F00E0467A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C29652FA2A00F00E0467A /* Icon.png in Resources */,
+				375C293C2FA2A00F00E0467A /* LaunchScreen.storyboard in Resources */,
+				375C29632FA2A00F00E0467A /* Main.html in Resources */,
+				375C29692FA2A00F00E0467A /* Script.js in Resources */,
+				375C296D2FA2A00F00E0467A /* Assets.xcassets in Resources */,
+				375C293F2FA2A00F00E0467A /* Main.storyboard in Resources */,
+				375C29672FA2A00F00E0467A /* Style.css in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C29432FA2A00F00E0467A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C29662FA2A00F00E0467A /* Icon.png in Resources */,
+				375C29682FA2A00F00E0467A /* Style.css in Resources */,
+				375C294B2FA2A00F00E0467A /* Main.storyboard in Resources */,
+				375C296A2FA2A00F00E0467A /* Script.js in Resources */,
+				375C296E2FA2A00F00E0467A /* Assets.xcassets in Resources */,
+				375C29642FA2A00F00E0467A /* Main.html in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C29502FA2A00F00E0467A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C29922FA2A00F00E0467A /* assets in Resources */,
+				375C29912FA2A00F00E0467A /* manifest.json in Resources */,
+				375C29902FA2A00F00E0467A /* icons in Resources */,
+				375C29932FA2A00F00E0467A /* src in Resources */,
+				375C298E2FA2A00F00E0467A /* service-worker-loader.js in Resources */,
+				375C298F2FA2A00F00E0467A /* pennant.svg in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C295A2FA2A00F00E0467A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C298C2FA2A00F00E0467A /* assets in Resources */,
+				375C298B2FA2A00F00E0467A /* manifest.json in Resources */,
+				375C298A2FA2A00F00E0467A /* icons in Resources */,
+				375C298D2FA2A00F00E0467A /* src in Resources */,
+				375C29882FA2A00F00E0467A /* service-worker-loader.js in Resources */,
+				375C29892FA2A00F00E0467A /* pennant.svg in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		375C292F2FA2A00F00E0467A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C296B2FA2A00F00E0467A /* ViewController.swift in Sources */,
+				375C29372FA2A00F00E0467A /* AppDelegate.swift in Sources */,
+				375C29392FA2A00F00E0467A /* SceneDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C29412FA2A00F00E0467A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C296C2FA2A00F00E0467A /* ViewController.swift in Sources */,
+				375C29482FA2A00F00E0467A /* AppDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C294E2FA2A00F00E0467A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C296F2FA2A00F00E0467A /* SafariWebExtensionHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		375C29582FA2A00F00E0467A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				375C29702FA2A00F00E0467A /* SafariWebExtensionHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		375C29552FA2A00F00E0467A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 375C29512FA2A00F00E0467A /* Deepmarks Extension (iOS) */;
+			targetProxy = 375C29542FA2A00F00E0467A /* PBXContainerItemProxy */;
+		};
+		375C295F2FA2A00F00E0467A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 375C295B2FA2A00F00E0467A /* Deepmarks Extension (macOS) */;
+			targetProxy = 375C295E2FA2A00F00E0467A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		375C29262FA2A00E00E0467A /* Main.html */ = {
+			isa = PBXVariantGroup;
+			children = (
+				375C29272FA2A00E00E0467A /* Base */,
+			);
+			name = Main.html;
+			sourceTree = "<group>";
+		};
+		375C293A2FA2A00F00E0467A /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				375C293B2FA2A00F00E0467A /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+		375C293D2FA2A00F00E0467A /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				375C293E2FA2A00F00E0467A /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		375C29492FA2A00F00E0467A /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				375C294A2FA2A00F00E0467A /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		375C29712FA2A00F00E0467A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		375C29722FA2A00F00E0467A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		375C29742FA2A00F00E0467A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Deepmarks Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks.Extension;
+				PRODUCT_NAME = "Deepmarks Extension";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		375C29752FA2A00F00E0467A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Deepmarks Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks.Extension;
+				PRODUCT_NAME = "Deepmarks Extension";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		375C29782FA2A00F00E0467A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Deepmarks;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks;
+				PRODUCT_NAME = Deepmarks;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		375C29792FA2A00F00E0467A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Deepmarks;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks;
+				PRODUCT_NAME = Deepmarks;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		375C297B2FA2A00F00E0467A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/Deepmarks.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Deepmarks Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks.Extension;
+				PRODUCT_NAME = "Deepmarks Extension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		375C297C2FA2A00F00E0467A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/Deepmarks.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Deepmarks Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks.Extension;
+				PRODUCT_NAME = "Deepmarks Extension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		375C297F2FA2A00F00E0467A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "macOS (App)/Deepmarks.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Deepmarks;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks;
+				PRODUCT_NAME = Deepmarks;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		375C29802FA2A00F00E0467A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "macOS (App)/Deepmarks.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2.2.8;
+				DEVELOPMENT_TEAM = 4735345984;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Deepmarks;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MARKETING_VERSION = 2.2.8;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.deepmarks.Deepmarks;
+				PRODUCT_NAME = Deepmarks;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		375C29232FA2A00E00E0467A /* Build configuration list for PBXProject "Deepmarks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				375C29712FA2A00F00E0467A /* Debug */,
+				375C29722FA2A00F00E0467A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		375C29732FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks Extension (iOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				375C29742FA2A00F00E0467A /* Debug */,
+				375C29752FA2A00F00E0467A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		375C29772FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks (iOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				375C29782FA2A00F00E0467A /* Debug */,
+				375C29792FA2A00F00E0467A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		375C297A2FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks Extension (macOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				375C297B2FA2A00F00E0467A /* Debug */,
+				375C297C2FA2A00F00E0467A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		375C297E2FA2A00F00E0467A /* Build configuration list for PBXNativeTarget "Deepmarks (macOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				375C297F2FA2A00F00E0467A /* Debug */,
+				375C29802FA2A00F00E0467A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 375C29202FA2A00E00E0467A /* Project object */;
+}
