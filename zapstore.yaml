@@ -1,0 +1,49 @@
+repository: https://github.com/ostermayer/deepmarks-public
+release_source: ./frontend/android/app/build/outputs/apk/release/app-release.apk
+pubkey: npub199zwj9d6w88slsvlthdqfr8q2w58cq0aw3utz7fnpgt7mjjvut6qc80sqk
+
+name: Deepmarks
+summary: Nostr-native social bookmarks and long-tail archives.
+description: |
+  Deepmarks is a Nostr-native bookmarking app for saving, tagging,
+  importing, exporting, and sharing links on open relays. Public
+  bookmarks are signed Nostr events, private bookmarks are encrypted,
+  and lifetime members can queue long-tail page archives.
+
+  The mobile app can also act as a Nostr signer. It supports NIP-46
+  remote signer pairing links and Android NIP-55 signer intents so
+  users can keep their key on their phone while signing into compatible
+  Nostr apps.
+
+tags:
+  - nostr
+  - bookmarks
+  - productivity
+  - signer
+license: GPL-3.0-only
+website: https://deepmarks.org
+icon: ./screenshots/android/deepmarks-android-app-icon-512.png
+
+images:
+  - ./screenshots/android/phone/deepmarks-phone-01.png
+  - ./screenshots/android/phone/deepmarks-phone-02.png
+  - ./screenshots/android/phone/deepmarks-phone-03.png
+  - ./screenshots/android/phone/deepmarks-phone-04.png
+  - ./screenshots/android/phone/deepmarks-phone-05.png
+  - ./screenshots/android/phone/deepmarks-phone-06.png
+  - ./screenshots/android/phone/deepmarks-phone-07.png
+  - ./screenshots/android/phone/deepmarks-phone-08.png
+
+release_notes: ./docs/releases/android-2.2.11.md
+
+supported_nips:
+  - "01"
+  - "07"
+  - "44"
+  - "46"
+  - "55"
+  - "57"
+  - "98"
+
+metadata_sources:
+  - github

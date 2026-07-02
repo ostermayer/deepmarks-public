@@ -1,0 +1,486 @@
+# Box A — public edge.
+# Caddy terminates TLS for api.deepmarks.org, relay.*, blossom.*.
+# (deepmarks.org bare apex is served by Cloudflare Pages — frontend.)
+# Internal services (api, redis, meili) are never published to the host.
+# Redis is published to the VPC interface only (10.0.0.2:6379) so Box B can connect.
+
+services:
+  caddy:
+    # Custom image (caddy:2 + caddy-ratelimit plugin) — see ./caddy/Dockerfile.
+    build: ./caddy
+    image: deepmarks-caddy:ratelimit
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./blossom-site:/srv/blossom-site:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [strfry, blossom-server, api]
+
+  strfry:
+    build: ./strfry
+    restart: unless-stopped
+    labels:
+      # Opt this container into the autoheal sidecar (see below).
+      autoheal: "true"
+    # 100%-uptime story: if strfry's process exits the relay is dead
+    # and the entire app stops working (web, iOS, extension all only
+    # talk to wss://relay.deepmarks.org). `restart: unless-stopped`
+    # already restarts it on crash; the healthcheck adds two things:
+    #   1. compose will report 'unhealthy' when port 7777 has stopped
+    #      accepting connections (e.g. the process is alive but
+    #      deadlocked), which the Tier-2 monitor on Box C picks up.
+    #   2. an autoheal sidecar (below) restarts unhealthy containers
+    #      so a deadlocked relay self-recovers within ~30s instead of
+    #      waiting for an operator.
+    # Test: cheap TCP connect via node (already in the image — no
+    # extra package needed). Exits 0 if the WS port is listening.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').createConnection(7777,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1));setTimeout(()=>process.exit(2),3000)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    environment:
+      # Used by the writePolicy plugin to:
+      #   - gate kind:1985 (lifetime labels) to the admin/operational pubkey
+      #   - rate-limit other kinds per pubkey
+      #   - extend the kind allowlist (kind:0/1/3/6/7/10002/30023) for
+      #     the public brand/social pubkey so the project can run a Nostr
+      #     presence on its own relay
+      DEEPMARKS_ADMIN_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      DEEPMARKS_PUBLIC_BRAND_PUBKEY: ${DEEPMARKS_PUBLIC_BRAND_PUBKEY:-2944e915ba71cf0fc19f5dda048ce053a87c01fd7478b179330a17edca4ce2f4}
+      STRFRY_RATE_LIMIT_PER_HOUR: ${STRFRY_RATE_LIMIT_PER_HOUR:-200}
+      STRFRY_PRIVATE_STATE_RATE_LIMIT_PER_HOUR: ${STRFRY_PRIVATE_STATE_RATE_LIMIT_PER_HOUR:-5000}
+      # Strfry's writePolicy plugin reads dm:registered:pubkeys from
+      # Redis to gate writes. Despite the key name, this is a relay
+      # allowlist, not a logged-in-user count: it includes Deepmarks
+      # users plus followed curators mirrored by the follows-ingester.
+      # api auto-populates it on NIP-98 auth, lifetime
+      # markPaid, username claim, bookmark ingest, and watched-contact
+      # ingest. REDIS_URL carries the auth password (Redis is
+      # password-protected on this box) — same template api
+      # uses below.
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+    depends_on: [redis]
+    volumes:
+      - ./strfry/strfry.conf:/etc/strfry.conf:ro
+      - ./strfry/deepmarks.js:/opt/strfry-policies/deepmarks.js:ro
+      - strfry-db:/var/lib/strfry
+    # Bind to the VPC interface only so Box C (the signing bunker) can
+    # reach strfry for NIP-46 messages without those going over the
+    # public internet. Public clients still reach strfry through Caddy
+    # at wss://relay.deepmarks.org (see Caddyfile).
+    ports:
+      - "10.0.0.2:7777:7777"
+
+  # ── strfry-stream — live replication to Box B ────────────────────────
+  # Tails the same LMDB and pushes every newly-stored event to the
+  # VPC-only replica on Box B within seconds. Reconcile a gap after
+  # replica downtime with a one-shot negentropy sync:
+  #   docker compose --profile replication run --rm strfry-stream \
+  #     strfry sync ws://10.0.0.3:7777 --dir up
+  #
+  # ⚠ pid: "service:strfry" is LOAD-BEARING. LMDB's lock table tracks
+  # readers BY PID; a second container in its own PID namespace collides
+  # with the relay's pids and crashes it with
+  # "mdb_txn_begin: Resource temporarily unavailable" (2026-06-09
+  # incident: ~4 min relay crash-loop; the publish queue absorbed all
+  # writes). Sharing the relay container's PID namespace keeps the
+  # reader table consistent.
+  #
+  # Opt-in via the `replication` profile: requires the Linode Cloud
+  # Firewall on Box B to allow TCP 7777 from 10.0.0.2 first (host ufw
+  # rule is already in place). Enable with:
+  #   docker compose --profile replication up -d strfry-stream
+  strfry-stream:
+    build: ./strfry
+    restart: unless-stopped
+    profiles: ["replication"]
+    pid: "service:strfry"
+    depends_on:
+      - strfry
+    # `strfry stream` is deprecated upstream — router is the same
+    # machinery driven by a config file (strfry-router.config).
+    command: ["strfry", "router", "/etc/strfry-router.config"]
+    volumes:
+      - ./strfry/strfry.conf:/etc/strfry.conf:ro
+      - ./strfry/strfry-router.config:/etc/strfry-router.config:ro
+      - strfry-db:/var/lib/strfry
+
+  blossom-server:
+    image: ghcr.io/hzrd149/blossom-server:master
+    restart: unless-stopped
+    command: ["config.yml"]
+    environment:
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${LINODE_ACCESS_KEY}
+      S3_SECRET_KEY: ${LINODE_SECRET_KEY}
+      # Second layer after Caddy's /blossom/check-auth gate: only the
+      # Deepmarks archive worker can write archive blobs to our primary.
+      WRITE_ALLOWLIST_PUBKEYS: ${ARCHIVE_WORKER_PUBKEY}
+      ARCHIVE_WORKER_PUBKEY: ${ARCHIVE_WORKER_PUBKEY}
+    volumes:
+      - ./blossom-config.yml:/app/config.yml:ro
+      - blossom-data:/app/data
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      UWSGI_WORKERS: "2"
+      UWSGI_THREADS: "2"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+
+  api:
+    build: ../../api
+    restart: unless-stopped
+    # Bind to the VPC interface so Box B's archive-worker can POST
+    # /archive/callback over Linode's private network without going
+    # through Caddy + the public internet. HMAC auth on the callback
+    # already gates who can call it; VPC keeps the surface off the
+    # public internet entirely. Port matches PAYMENT_PROXY_URL on Box B.
+    ports:
+      - "10.0.0.2:4000:4000"
+    environment:
+      VOLTAGE_REST_URL: ${VOLTAGE_REST_URL}
+      VOLTAGE_INVOICE_MACAROON: ${VOLTAGE_INVOICE_MACAROON}
+      # No DEEPMARKS_NSEC on Box A — operational nsecs live on Box C
+      # inside nsecBunker. Payment-proxy authenticates to the bunker with
+      # an ephemeral client keypair (BUNKER_CLIENT_NSEC) below.
+      DEEPMARKS_LN_USERNAME: zap
+      # LN address stays clean: zap@deepmarks.org. The CF Pages
+      # _redirects file proxies /.well-known/lnurlp/* to api.
+      DEEPMARKS_LN_DOMAIN: deepmarks.org
+      # Server-emitted callback URLs and NIP-98 auth URL expectations
+      # must match the host clients actually hit, which is now api.*.
+      PUBLIC_BASE_URL: https://api.deepmarks.org
+      # Atom feed browser/self links should live on the public site,
+      # even though the XML is generated by api.
+      FEED_PUBLIC_BASE_URL: https://deepmarks.org
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+      # Web Push (VAPID). One-time setup: `npx web-push generate-vapid-keys`,
+      # paste both halves into deploy/box-a/.env. Frontend reads
+      # /web-push/public-key to subscribe; the zap-listener uses the
+      # private key to sign push payloads. Subject identifies us to
+      # the push provider — either mailto: or https://.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@deepmarks.org}
+      PORT: "4000"
+      HOST: 0.0.0.0
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      LOG_LEVEL: info
+      NODE_ENV: production
+      # This process serves HTTP only. The long-running background workers
+      # run as their own containers (worker-* below); see src/worker.ts.
+      # Set to `all` to fold the whole fleet back into this process (the
+      # dev / single-box fallback) — but then drop the worker-* services
+      # or they'll double-run.
+      RUN_WORKERS: none
+      JWT_SECRET: ${JWT_SECRET}
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      INDEXER_RELAY_URL: ws://strfry:7777
+      SEED_PINBOARD_INTERVAL_HOURS: "24"
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Deepmarks <noreply@deepmarks.org>}
+      ALERT_EMAIL: ${ALERT_EMAIL:-}
+      BTCPAY_URL: ${BTCPAY_URL:-}
+      BTCPAY_STORE_ID: ${BTCPAY_STORE_ID:-}
+      BTCPAY_API_KEY: ${BTCPAY_API_KEY:-}
+      BTCPAY_WEBHOOK_SECRET: ${BTCPAY_WEBHOOK_SECRET:-}
+      DEEPINFRA_TOKEN: ${DEEPINFRA_TOKEN:-}
+      DEEPINFRA_CHAT_TIMEOUT_MS: ${DEEPINFRA_CHAT_TIMEOUT_MS:-}
+      CEREBRAS_TOKEN: ${CEREBRAS_TOKEN:-}
+      CEREBRAS_BASE_URL: ${CEREBRAS_BASE_URL:-}
+      CEREBRAS_CHAT_MODEL: ${CEREBRAS_CHAT_MODEL:-}
+      DEEPINFRA_CHAT_MODEL: ${DEEPINFRA_CHAT_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      DEEPINFRA_RESCUE_MODEL: ${DEEPINFRA_RESCUE_MODEL:-deepseek-ai/DeepSeek-V4-Pro}
+      DEEPINFRA_EMBEDDING_MODEL: ${DEEPINFRA_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
+      DEEPINFRA_RERANK_MODEL: ${DEEPINFRA_RERANK_MODEL:-Qwen/Qwen3-Reranker-4B}
+      DEEPINFRA_TIMEOUT_MS: ${DEEPINFRA_TIMEOUT_MS:-8000}
+      ARCHIVE_RESCUE_SEARCH_PROVIDER: ${ARCHIVE_RESCUE_SEARCH_PROVIDER:-searxng}
+      ARCHIVE_RESCUE_SEARCH_URL: ${ARCHIVE_RESCUE_SEARCH_URL:-http://searxng:8080/search}
+      ARCHIVE_RESCUE_SEARCH_TIMEOUT_MS: ${ARCHIVE_RESCUE_SEARCH_TIMEOUT_MS:-6000}
+      ARCHIVE_RESCUE_SEARCH_MAX_RESULTS: ${ARCHIVE_RESCUE_SEARCH_MAX_RESULTS:-10}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      WAYBACK_SPN_ENABLED: ${WAYBACK_SPN_ENABLED:-}
+      WAYBACK_SPN_S3_KEY: ${WAYBACK_SPN_S3_KEY:-}
+      LLM_ENABLED: ${LLM_ENABLED:-1}
+      LLM_BACKFILL_EXISTING_BOOKMARKS: ${LLM_BACKFILL_EXISTING_BOOKMARKS:-0}
+      LLM_BACKFILL_PAGE_SIZE: ${LLM_BACKFILL_PAGE_SIZE:-100}
+      LLM_BACKFILL_DELAY_MS: ${LLM_BACKFILL_DELAY_MS:-250}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-deepmarks_bookmarks_semantic}
+      QDRANT_TIMEOUT_MS: ${QDRANT_TIMEOUT_MS:-5000}
+      ADMIN_PUBKEYS: ${ADMIN_PUBKEYS:-}
+      # Favicon cache (Linode Object Storage). All four must be set or
+      # the /favicon endpoint 503s and the frontend falls back to its
+      # inline icon.
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-southeast-1}
+      FAVICON_BUCKET: ${FAVICON_BUCKET:-}
+      FAVICON_PUBLIC_BASE: ${FAVICON_PUBLIC_BASE:-}
+      LINODE_CIPHERTEXT_BUCKET: ${LINODE_CIPHERTEXT_BUCKET:-ciphertext}
+      # Shared with the blossom-server container above (S3_BUCKET).
+      # Lets the proxy's DELETE /account/archives route remove our
+      # primary's copy of an archive blob directly from S3 without
+      # routing through the worker on Box B (which holds the
+      # uploader-pubkey nsec required for BUD-01 DELETE auth).
+      BLOSSOM_S3_BUCKET: ${S3_BUCKET:-}
+      LINODE_ACCESS_KEY: ${LINODE_ACCESS_KEY:-}
+      LINODE_SECRET_KEY: ${LINODE_SECRET_KEY:-}
+      # WebAuthn relying-party config for passkey-encrypted nsec storage.
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-deepmarks.org}
+      PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-Deepmarks}
+      PASSKEY_ORIGIN: ${PASSKEY_ORIGIN:-https://deepmarks.org}
+      # Bunker client — api's key pair for NIP-46 authentication
+      # to the Box C signer. The bunker's permission table authorizes
+      # this pubkey to sign a narrow allowlist of kinds.
+      BUNKER_CLIENT_NSEC: ${BUNKER_CLIENT_NSEC}
+      BUNKER_RELAY_URL: ${BUNKER_RELAY_URL:-ws://strfry:7777}
+      BUNKER_BRAND_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      BUNKER_PERSONAL_PUBKEY: ${BUNKER_PERSONAL_PUBKEY}
+      DEEPMARKS_PUBLIC_BRAND_PUBKEY: ${DEEPMARKS_PUBLIC_BRAND_PUBKEY:-2944e915ba71cf0fc19f5dda048ce053a87c01fd7478b179330a17edca4ce2f4}
+      DEEPMARKS_SEEDER_PUBKEY: ${DEEPMARKS_SEEDER_PUBKEY:-}
+      # Shared secret with archive-worker (Box B) for HMAC-signed
+      # /archive/callback POSTs. Without this passthrough the route
+      # 503s and every archive job's terminal state notification is
+      # dropped — found by the security probe script after batch 2.
+      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET}
+      # Used by /blossom/check-auth so the archive worker can keep
+      # uploading archives even though user writes are dynamically paid.
+      ARCHIVE_WORKER_PUBKEY: ${ARCHIVE_WORKER_PUBKEY}
+    depends_on: [redis, meilisearch, strfry, qdrant, searxng]
+
+  # ─── Background worker fleet ─────────────────────────────────────────
+  # The API (api) runs RUN_WORKERS=none and serves requests
+  # only. The long-running workers run here as their own containers off
+  # the SAME image (build: ../../api → tagged deepmarks-
+  # api:worker, built once), one process per task group,
+  # selected by WORKER_GROUP. A wedged relay subscription or an LLM
+  # backfill can no longer stall the payment/HTTP event loop, and each
+  # group restarts / scales on its own. Each gets only the env its group
+  # needs, so e.g. the Voltage macaroon lives only on worker-payments
+  # (settlement) and the API (invoice creation), not on every process.
+
+  # relay→Meilisearch writers: bookmark index, save-count, zap-total.
+  worker-search-indexer:
+    build: ../../api
+    image: deepmarks-api:worker
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    # Workers share the API image, which carries a HEALTHCHECK that wgets
+    # :4000/health. Workers don't serve HTTP, so disable it — otherwise
+    # they read "unhealthy" forever. (A heartbeat-freshness check could
+    # replace this later.)
+    healthcheck:
+      disable: true
+    environment:
+      WORKER_GROUP: search-indexer
+      NODE_ENV: production
+      LOG_LEVEL: info
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+      INDEXER_RELAY_URL: ws://strfry:7777
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      # Zap-receipt trust filter is derived from these pubkeys — no signing,
+      # so this group holds no bunker client nsec.
+      BUNKER_BRAND_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      BUNKER_PERSONAL_PUBKEY: ${BUNKER_PERSONAL_PUBKEY}
+      # Web Push: the zap listener notifies zap recipients.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@deepmarks.org}
+      # Decides whether the indexer queues new bookmarks for LLM enrichment.
+      LLM_ENABLED: ${LLM_ENABLED:-1}
+      DEEPINFRA_TOKEN: ${DEEPINFRA_TOKEN:-}
+      DEEPINFRA_CHAT_TIMEOUT_MS: ${DEEPINFRA_CHAT_TIMEOUT_MS:-}
+      CEREBRAS_TOKEN: ${CEREBRAS_TOKEN:-}
+      CEREBRAS_BASE_URL: ${CEREBRAS_BASE_URL:-}
+      CEREBRAS_CHAT_MODEL: ${CEREBRAS_CHAT_MODEL:-}
+      DEEPINFRA_CHAT_MODEL: ${DEEPINFRA_CHAT_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      DEEPINFRA_EMBEDDING_MODEL: ${DEEPINFRA_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
+      DEEPINFRA_RERANK_MODEL: ${DEEPINFRA_RERANK_MODEL:-Qwen/Qwen3-Reranker-4B}
+    depends_on: [redis, meilisearch, strfry]
+
+  # The network-heavy outbox: relay fanout, onboarding scanner, follows
+  # ingester, profile resolver, and the daily Pinboard seeder.
+  worker-relay-sync:
+    build: ../../api
+    image: deepmarks-api:worker
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    # Workers share the API image, which carries a HEALTHCHECK that wgets
+    # :4000/health. Workers don't serve HTTP, so disable it — otherwise
+    # they read "unhealthy" forever. (A heartbeat-freshness check could
+    # replace this later.)
+    healthcheck:
+      disable: true
+    environment:
+      WORKER_GROUP: relay-sync
+      NODE_ENV: production
+      LOG_LEVEL: info
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+      INDEXER_RELAY_URL: ws://strfry:7777
+      CANONICAL_RELAY_URL: ${CANONICAL_RELAY_URL:-wss://relay.deepmarks.org}
+      SEED_PINBOARD_INTERVAL_HOURS: "24"
+      # Bunker signing — the daily Pinboard bookmark + kind:1 cross-post are
+      # published as the public brand/social profile (legacy "personal").
+      BUNKER_CLIENT_NSEC: ${BUNKER_CLIENT_NSEC}
+      BUNKER_RELAY_URL: ${BUNKER_RELAY_URL:-ws://strfry:7777}
+      BUNKER_BRAND_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      BUNKER_PERSONAL_PUBKEY: ${BUNKER_PERSONAL_PUBKEY}
+      DEEPMARKS_PUBLIC_BRAND_PUBKEY: ${DEEPMARKS_PUBLIC_BRAND_PUBKEY:-2944e915ba71cf0fc19f5dda048ce053a87c01fd7478b179330a17edca4ce2f4}
+      DEEPMARKS_SEEDER_PUBKEY: ${DEEPMARKS_SEEDER_PUBKEY:-}
+      # Alerter — relay-fanout dead-letter notifications.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Deepmarks <noreply@deepmarks.org>}
+      ALERT_EMAIL: ${ALERT_EMAIL:-}
+    depends_on: [redis, strfry]
+
+  # LLM enrichment queue consumer (+ the optional existing-bookmark backfill).
+  worker-enrichment:
+    build: ../../api
+    image: deepmarks-api:worker
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    # Workers share the API image, which carries a HEALTHCHECK that wgets
+    # :4000/health. Workers don't serve HTTP, so disable it — otherwise
+    # they read "unhealthy" forever. (A heartbeat-freshness check could
+    # replace this later.)
+    healthcheck:
+      disable: true
+    environment:
+      WORKER_GROUP: enrichment
+      NODE_ENV: production
+      LOG_LEVEL: info
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      DEEPINFRA_TOKEN: ${DEEPINFRA_TOKEN:-}
+      DEEPINFRA_CHAT_TIMEOUT_MS: ${DEEPINFRA_CHAT_TIMEOUT_MS:-}
+      CEREBRAS_TOKEN: ${CEREBRAS_TOKEN:-}
+      CEREBRAS_BASE_URL: ${CEREBRAS_BASE_URL:-}
+      CEREBRAS_CHAT_MODEL: ${CEREBRAS_CHAT_MODEL:-}
+      DEEPINFRA_CHAT_MODEL: ${DEEPINFRA_CHAT_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      DEEPINFRA_EMBEDDING_MODEL: ${DEEPINFRA_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
+      DEEPINFRA_RERANK_MODEL: ${DEEPINFRA_RERANK_MODEL:-Qwen/Qwen3-Reranker-4B}
+      DEEPINFRA_TIMEOUT_MS: ${DEEPINFRA_TIMEOUT_MS:-8000}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-deepmarks_bookmarks_semantic}
+      QDRANT_TIMEOUT_MS: ${QDRANT_TIMEOUT_MS:-5000}
+      LLM_ENABLED: ${LLM_ENABLED:-1}
+      LLM_BACKFILL_EXISTING_BOOKMARKS: ${LLM_BACKFILL_EXISTING_BOOKMARKS:-0}
+      LLM_BACKFILL_PAGE_SIZE: ${LLM_BACKFILL_PAGE_SIZE:-100}
+      LLM_BACKFILL_DELAY_MS: ${LLM_BACKFILL_DELAY_MS:-250}
+    depends_on: [redis, meilisearch, qdrant]
+
+  # Lightning invoice listener (zap-receipt + legacy metered-archive
+  # settlement), the lifetime-archive backfill, and boot-time
+  # lifetime-label recovery.
+  worker-payments:
+    build: ../../api
+    image: deepmarks-api:worker
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    # Workers share the API image, which carries a HEALTHCHECK that wgets
+    # :4000/health. Workers don't serve HTTP, so disable it — otherwise
+    # they read "unhealthy" forever. (A heartbeat-freshness check could
+    # replace this later.)
+    healthcheck:
+      disable: true
+    environment:
+      WORKER_GROUP: payments
+      NODE_ENV: production
+      LOG_LEVEL: info
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@redis:6379
+      INDEXER_RELAY_URL: ws://strfry:7777
+      # Invoice settlement reads the Voltage gRPC invoice stream.
+      VOLTAGE_REST_URL: ${VOLTAGE_REST_URL}
+      VOLTAGE_INVOICE_MACAROON: ${VOLTAGE_INVOICE_MACAROON}
+      # Bunker signing — zap receipts (kind:9735) + lifetime labels (kind:1985).
+      BUNKER_CLIENT_NSEC: ${BUNKER_CLIENT_NSEC}
+      BUNKER_RELAY_URL: ${BUNKER_RELAY_URL:-ws://strfry:7777}
+      BUNKER_BRAND_PUBKEY: ${BUNKER_BRAND_PUBKEY}
+      BUNKER_PERSONAL_PUBKEY: ${BUNKER_PERSONAL_PUBKEY}
+      LIFETIME_LABEL_RELAYS: ${LIFETIME_LABEL_RELAYS:-ws://strfry:7777,wss://nos.lol,wss://relay.primal.net}
+      # Alerter — Voltage circuit-breaker + settlement-failure notifications.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Deepmarks <noreply@deepmarks.org>}
+      ALERT_EMAIL: ${ALERT_EMAIL:-}
+    depends_on: [redis, strfry]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --bind
+      - 0.0.0.0
+      # Durability: AOF on with fsync every second. RDB snapshots on at
+      # the default intervals (every 1h if >=1 change, every 5min if
+      # >=100 changes, every 60s if >=10k changes). Belt-and-suspenders
+      # so a kernel crash loses at most ~1s of writes, and we can still
+      # take coherent point-in-time snapshots for the nightly S3 push.
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - "3600 1 300 100 60 10000"
+    # Bind to the VPC interface only (not the public IP). Box B
+    # reaches Redis via 10.0.0.2:6379 over the VPC.
+    ports:
+      - "10.0.0.2:6379:6379"
+    volumes:
+      - redis-data:/data
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meili-data:/meili_data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  # Autoheal — watches every container with label autoheal=true and
+  # restarts any that compose marks 'unhealthy'. Pairs with the strfry
+  # healthcheck above to get the relay back up automatically if it
+  # ever wedges. Tiny image (~6MB); no impact on other services.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "10"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  caddy-data:
+  caddy-config:
+  blossom-data:
+  strfry-db:
+  redis-data:
+  meili-data:
+  qdrant-data:

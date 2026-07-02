@@ -1,0 +1,54 @@
+publicDomain: blossom.deepmarks.org
+
+database:
+  path: /app/data/sqlite.db
+
+storage:
+  backend: s3
+  s3:
+    endpoint: ${S3_ENDPOINT}
+    bucket: ${S3_BUCKET}
+    accessKey: ${S3_ACCESS_KEY}
+    secretKey: ${S3_SECRET_KEY}
+    region: ${S3_REGION}
+    tmpDir: /app/data/s3-tmp
+  rules:
+    - type: "*"
+      expiration: "100 years"
+      pubkeys:
+        - ${ARCHIVE_WORKER_PUBKEY}
+  removeWhenNoOwners: false
+
+upload:
+  enabled: true
+  requireAuth: true
+  requirePubkeyInRule: true
+  maxSize: 2147483648
+
+mirror:
+  enabled: true
+  requireAuth: true
+  connectTimeout: 30000
+  bodyTimeout: 0
+
+delete:
+  requireAuth: true
+
+list:
+  enabled: false
+
+landing:
+  enabled: false
+
+media:
+  enabled: false
+
+dashboard:
+  enabled: false
+
+report:
+  enabled: false
+
+prune:
+  initialDelayMs: 600000
+  intervalMs: 3600000

@@ -1,0 +1,637 @@
+# Archives
+
+Archiving is a lifetime-member feature. Free users can save, search,
+zap, import, and export bookmarks, but archive controls stay hidden or
+link to the lifetime upgrade flow.
+
+Archives are background preservation for long-tail availability. They are
+not treated as realtime page capture; the UI should make queue state clear
+without implying a bookmark is archived before the worker has shipped a
+snapshot.
+
+## User Flow
+
+Lifetime users can archive when:
+
+- saving a new bookmark on web, mobile, or the browser extension
+- editing an existing bookmark
+- using the native share sheet / share extension
+- calling the lifetime-only API
+
+Manual archive queues use `POST /archive/lifetime` with NIP-98 auth.
+Signed saves that reach `POST /publish` with `archive-tier: forever`
+are also queued server-side, so a user can save from a native share
+sheet or browser extension and leave without visiting the website. The
+API path uses `POST /api/v1/archives` with a lifetime-issued API key.
+
+When a pubkey becomes lifetime, api starts a best-effort
+backfill for that pubkey's existing public bookmarks so old saves enter
+the archive queue without the user opening each one. The web return
+path also enables archive-by-default in synced settings for future
+saves. Existing private bookmarks require the user's browser signer for
+per-archive encryption keys, so the web app and first-party extension
+queue those client-side when the signer is unlocked.
+
+Normal bookmark rows show an archive icon once a completed archive
+exists. Most archives are a single file: clicking opens the Blossom
+snapshot directly for public archives and decrypts in the browser for
+private ones. Scholarly pages that expose DOI metadata and a full-text
+PDF may produce multiple files for the same archive record, usually the
+rendered HTML page plus the PDF. In that case the same row icon opens a
+small chooser so the user can pick which file to view. Paid media add-on
+archives (video/audio/image) keep the same row archive icon, but on the
+buyer's own row it opens a small action menu with play and download.
+Play fetches the encrypted blob, decrypts it client-side, and renders it
+inline with native media controls on web. On iOS and Android shells it
+launches the decrypted file through the native/WebView media path so the
+device player can handle playback. Download is available from the same
+menu, including on mobile native apps. The raw encrypted Blossom blob is
+not opened directly for playback. Their encrypted sidecars (thumbnail,
+captions, metadata) are not surfaced in the chooser.
+The row's privacy chip (next to the URL) conveys whether the archive is
+encrypted. Pending or running jobs do not render as row badges.
+
+The "archives" view is reachable from the section nav tab at the top of
+`/app/bookmarks` on web. Native shells suppress the whole section nav
+because bottom tabs own mobile navigation; archive access is surfaced on
+bookmark rows themselves, so mobile users open private/public archives
+from the saved item instead of navigating a dedicated archive tab. The
+underlying web URL is
+`/app/bookmarks?view=archived`. It shows completed archives, server
+queued/running jobs, local jobs queued by older app versions, and
+bookmarks still waiting to queue. The completed source of truth is
+`/account/archives`; server backlog comes from `/account/archive-queue`;
+a bookmark's `archive-tier` tag is archive intent, not proof that the
+worker has shipped the snapshot.
+
+Enabling "archive" on a save or edit is a one-tap action — no
+confirmation popup. The form publishes the bookmark and fire-and-forget
+calls `enqueueArchivePage` so the user can move on while the worker
+processes in the background. The blossomHash lands on the row on the
+next refresh once the worker callback completes.
+
+The browser extension also exposes an explicit "archive current browser
+view" fallback under the archive toggle. When enabled, the extension
+serializes the already-loaded tab DOM, strips scripts and inline event
+handlers, and queues that HTML as an encrypted private archive through
+`POST /archive/browser-capture`. This does not replace the normal server
+worker archive; it is for pages the worker cannot fetch because of bot
+challenges, login walls, or publisher network restrictions. The capture
+is capped at 5 MB and intentionally does not inline every subresource or
+download linked files such as PDFs; the standard file/archive worker
+continues to handle direct media and document bytes when it can reach
+them.
+
+## Worker Flow
+
+`api` pushes an archive job into Redis at `dm:archive:queue`.
+Box B's `archive-worker` pulls from the queue with a crash-safe BLMOVE
+handoff into `dm:archive:processing:<workerId>`, renders the page with
+Playwright + SingleFile, uploads the result, and calls back to
+`api`.
+Load-bearing Redis queue transitions use checked pipeline execution:
+command-level Redis errors must fail the request/job instead of reading
+as success. On terminal worker failures, the worker records
+`callbackPending: true` in `dm:archive:done:<jobId>` if Box A does not
+accept the `/archive/callback`; the archive audit loop retries that
+failure callback and clears the flag after acknowledgement. This keeps
+refunds, alerts, and terminal state delivery durable even across a
+temporary api outage.
+Browser-captured private jobs skip the Playwright fetch/render step and
+enter at the encrypt/upload/callback stage with `source=rendered`.
+Blocking queue reads use dedicated Redis connections; the worker's main
+Redis client stays available for heartbeats, audit summaries, and other
+control-plane commands even while the archive and delete queues are
+empty.
+
+The renderer keeps a single shared Chromium process across jobs but
+detects when that process has died (Playwright surfaces it as
+"browser has been closed") and respawns transparently. Without this
+respawn, a single page that crashes the browser took the whole queue
+out — every subsequent job failed for the same reason until the
+container restarted. Detection lives in `archive-worker/src/renderer.ts`
+behind `ensureBrowser()` / `openContext()`.
+
+Per-host element strip rules clean up obvious noise before SingleFile
+runs (the right-rail recommendations on YouTube, the trends-and-Who-
+to-follow column on X). A typical YouTube watch page drops from ~60 MB
+to ~3–5 MB on disk without losing the player, title, description, or
+comments. The map lives in
+`archive-worker/src/strip-selectors.ts`; the failure mode is benign
+(an unknown host falls back to a vanilla SingleFile capture).
+
+The worker also runs a bounded archive audit loop. Each pass scans
+`dm:archive-job:*`, checks per-job completion markers and direct
+per-blob account archive entries when a done record is still present,
+and writes a summary to
+`dm:archive-audit:last` as soon as the pass starts and again when it
+finishes. The pass is intentionally capped by job count and runtime so a
+large archive history or Redis live-state scan cannot hide audit health
+from the dashboard; it does not walk owner-wide archive hashes in the
+scheduled worker loop.
+When a bounded pass stops early, the worker persists its Redis scan
+cursor at `dm:archive-audit:cursor` and resumes from that cursor on the
+next pass. This matters once `dm:archive-job:*` grows past the per-pass
+cap; otherwise every pass can keep scanning the same first slice and
+never reach older stale jobs.
+Stale public `webpage` and `file` jobs are replayable from persisted job
+metadata, so the audit loop requeues them when they are not queued,
+processing, active, completed, or failed. It records short-lived
+`dm:archive-audit:requeue:<jobId>` claims to avoid duplicate repair
+storms and exposes `requeued` / `requeueDeferred` counters in
+`dm:archive-audit:last`.
+Private webpage jobs and media jobs are not automatically replayed from
+server metadata because their archive keys are intentionally not retained
+after queueing. They must re-enter from the signed-in app or browser
+extension, where the client can generate and sync a fresh AES key. The web
+app does this automatically: it tracks failed media archives and re-requests
+them on a cooldown — recoverable failures (bot walls, missing PO token,
+"format not available", interrupted jobs) retry every ~2 days so a
+server-side fix is picked up quickly, while genuinely-gone media (no
+media / private / removed) backs off to monthly.
+Public webpage jobs still get Wayback fallback in the live worker path.
+Direct-file jobs (PDFs, audio/video, images) do too: if the live host is
+dead, slow, TLS-broken, or returning 4xx/5xx, the worker pulls the file
+from the Internet Archive snapshot on the **same** job (`id_` raw bytes,
+no age cap — a years-old snapshot of a link-rotted PDF is exactly what we
+want) before failing, so it archives on the first pass instead of waiting
+for the async rescue sweep — see `tryDownloadWaybackDirectFile` in
+`archive-worker/src/direct-file.ts`.
+
+Direct-file capture hardening: downloads validate the received byte count
+against `Content-Length` (rejecting truncated reads), refuse to store an
+HTML error/login page that a `.pdf`/`.epub`/`.zip` URL returned (magic-byte
+/ `<html>` check, so a corrupt "file" isn't archived), follow up to 10
+redirects (podcast analytics chains), retry transient HTTP (5xx/429/408/425),
+and — via a forced byte-sniff download — archive extensionless / generic
+`octet-stream` file URLs (`/download?id=…`, S3/CMS objects) that the URL
+extension can't classify. Media (yt-dlp) downloads fetch fragments in
+parallel (`--concurrent-fragments`) under a 20-minute cap so multi-hour
+videos actually finish.
+After a public `webpage` or direct-file (PDF/doc) job reaches terminal
+failure, Box A also starts an archive rescue pass. Rescue is public-only:
+private archive failures are not reprocessed because the server no longer
+has the user's archive key. The pass combines deterministic URL variants,
+Wayback availability, known public domain migrations, optional LLM hints,
+and live web search through the configured archive-rescue search provider
+(searxng / archive.today discovery). The LLM can
+generate targeted queries, but search runs as a separate server-side
+tool; the model is not a browser. Any candidate must pass the server
+SSRF guard, DNS resolution checks, host-relationship policy, and an HTTP
+probe before Deepmarks queues a new public rescue job.
+When the rescue job succeeds, the account archive record keeps the
+captured rescue URL and also stores the original failed URL so the user's
+bookmark row resolves to the rescued snapshot.
+
+Operator alerting on terminal failures is deliberately scoped to things
+the operator can act on. **Source-side** outcomes — a publisher/host that
+is blocked, 4xx/5xx, not found, too large, a Playwright page timeout/
+`net::err_`, a direct-file (PDF/media) `fetch()` failure such as
+"fetch failed", "the operation was aborted due to timeout", or an
+`ECONN*`/`UND_ERR_*` code, or the YouTube **webpage-archive** bot-wall
+("Sign in to confirm you're not a bot" served to headless Chromium — no
+operator fix, the oEmbed stub above handles the archive) — are recorded
+for the user and handed to the rescue pass, but do **not** page the
+operator (see `shouldAlertArchiveFailure` in `api/src/archive-failures.ts`).
+Many of these recover automatically: the rescue pass's Wayback lookup is
+not age-capped, so a dead URL with only a years-old snapshot (e.g. an old
+state-gov or academic PDF) is still rescued. Genuinely unrecoverable
+sources (dead host, no snapshot anywhere) stay a recorded user-facing
+failure without an operator email. Unexpected worker/infra failures
+(renderer crash, Blossom errors) still alert, and systemic trouble is
+caught separately by the aggregate archive-health monitor.
+
+> **YouTube has two distinct bot-wall alerts.** The **webpage path**
+> (lifetime webpage archive, Playwright) hits the wall and is suppressed
+> as source-side. The **media path** (paid add-on, yt-dlp) hits the same
+> wall when the operator cookies expire — that one is operator-actionable
+> and fires a distinct rate-limited `youtube-cookies-expired` alert so
+> the cookie file on Box B can be re-exported.
+
+Operators can force a fresh retry of stored terminal public archive
+failures with `POST /admin/archive-failures/retry`. The endpoint defaults
+to dry-run, creates a new lifetime archive job when enabled, and skips
+private/media failures because those require a fresh client-provided
+archive key.
+
+Worker hard caps:
+
+- max captured archive size: **150 MB** (was 50 MB; content-heavy
+  pages were bouncing). Pages over the cap are rejected as
+  `output_too_large` with category `permanent` so the queue doesn't
+  retry forever.
+- max chunk plaintext size: ~60 KB (private bookmark chunks, see below).
+
+Private archives are encrypted before upload with AES-256-GCM using a
+browser-generated key. The key is stored in the user's chunked encrypted
+`deepmarks-archive-keys` NIP-51 set (kind:30003, d-tag
+`deepmarks-archive-keys` for chunk 0, `deepmarks-archive-keys-N` for
+later chunks). While a job is still completing, the client also publishes
+the key under `job:<jobId>` so a clean build, app restart, or another
+device can recover the key before final blob-hash reconciliation runs.
+Multi-file private archives publish the same archive key for every file
+blob in the record after completion. See
+[the archive-keys section below](#archive-keys-set-chunking). Public
+archives are plaintext and can be mirrored freely. Media add-on archives
+for image, video, and audio stay private even when the original bookmark
+is public.
+
+Direct file URLs bypass browser rendering and preserve the original
+bytes. The direct-file path covers PDFs, direct audio/video/image files,
+captions/transcripts, RSS/Atom/XML/JSON/text/CSV files, HLS/DASH
+manifests, EPUB/MOBI/AZW/CBZ ebooks, Office/OpenDocument files, and
+common compressed archives, all under the same 150 MB capture cap.
+Public SVG archives are uploaded as `application/octet-stream` so the
+bytes are preserved without serving active SVG content inline.
+The archive worker has a live `test:filetypes:smoke` suite with named
+real-URL fixtures for each supported direct-file extension, plus a
+strict mode that fails if any extension lacks fixture coverage.
+
+The media worker first tries direct image/audio/video capture, then
+podcast RSS/Atom enclosure discovery, then yt-dlp for hosted media pages
+or streaming manifests, including common PeerTube, Reddit, X/Twitter,
+Imgur, and video hosts supported by yt-dlp. When yt-dlp exposes metadata
+JSON, thumbnails, or English captions/transcripts, those are stored as
+encrypted sibling files on the same archive record.
+Media capture is best-effort: Deepmarks attempts to archive associated
+media on eligible pages, but provider bot restrictions, login walls,
+removed media, unsupported players, or extractor limits can prevent a
+complete media archive.
+Podcast RSS/Atom discovery is episode-scoped: the worker downloads only
+the matching audio enclosure for the bookmarked page, or a single
+enclosure from a one-episode feed. It does not archive full feeds or
+backfill other episodes.
+YouTube media eligibility is limited to watch/short/embed-style video
+URLs. Search pages, channel pages, and YouTube captcha URLs are not
+queued as media archives. Provider auth/bot blocks, removed videos,
+private videos, unsupported URLs, and 404 extractor failures are terminal
+media-job failures; the worker does not keep retrying them.
+
+## X/tweet capture and the YouTube PO-token provider
+
+Two surfaces need extra help because their normal capture path is blocked.
+
+**X / Twitter.** x.com renders a tweet as an empty JavaScript shell SingleFile
+can't capture, and the public Nitter mirror ecosystem is effectively dead
+(rate-limited / blocked / empty). The worker rebuilds the tweet from the
+**FixTweet / FxEmbed API** (`api.fxtwitter.com`, fallback `api.fixupx.com`) —
+a no-credentials JSON endpoint (`archive-worker/src/tweet-embed.ts`):
+- *Webpage archive*: fetch the tweet JSON and render a clean, self-contained
+  HTML page (author, text, timestamp, stats, quoted tweet) with the avatar and
+  photos inlined as data URIs, so it survives even if Twitter's CDN later
+  disappears. If no provider can serve the tweet the job **fails** (retryable)
+  rather than rendering x.com — a logged-out datacenter render of x.com is a
+  login shell, and storing that as a "successful" archive is worse than a
+  clean failure that retries and hands off to the rescue pass.
+
+**Nostr notes.** A bookmarked Nostr event is archived via
+`https://njump.me/<nevent>` — njump server-renders the note as static HTML
+(author, content, media), which SingleFile captures cleanly. (It previously
+pointed at the `primal.net` SPA, which loads the note over a websocket after
+capture and left empty shells.)
+- *Media archive*: yt-dlp can no longer extract x.com video, so the worker
+  resolves the tweet's direct `video.twimg.com` mp4 from the same API and feeds
+  yt-dlp that file.
+
+**YouTube webpage archives.** A lifetime webpage archive of a YouTube URL
+(`/watch`, `/embed`, `/shorts`, `youtu.be`) goes through the normal Playwright
+render path, but YouTube serves a "Sign in to confirm you're not a bot" wall
+to headless Chromium from a datacenter IP — every live render fails
+permanently. The worker instead builds a small self-contained **HTML video
+card** from YouTube's no-auth **oEmbed API** (`https://www.youtube.com/oembed`):
+title, channel, thumbnail inlined as a data URI, link back to the live page
+(`archive-worker/src/youtube-embed.ts`). The archive succeeds, the user keeps
+their bookmark, no operator alert fires. Same pattern as the tweet-embed
+branch above; only `youtube.com/oembed` and `i.ytimg.com` are fetched
+(SSRF-safe). The paid media add-on below is the separate path for downloading
+the actual video file.
+
+**YouTube media archives.** YouTube gates most formats behind a BotGuard **PO token**; without
+one yt-dlp authenticates but returns "Requested format is not available". Box B
+runs a **`bgutil-provider`** sidecar that mints PO tokens, and the worker's
+yt-dlp `bgutil-ytdlp-pot-provider` plugin fetches one per request
+(`--extractor-args youtubepot-bgutilhttp:base_url=$YTDLP_POT_PROVIDER_URL`).
+yt-dlp is installed via a pip venv as **`yt-dlp[default]`** so the bundled
+**`yt-dlp-ejs`** challenge-solver scripts ship locally, with **deno** on the
+image as the JS runtime that executes them. Both are required to solve
+YouTube's signature/n-challenge: with bare `yt-dlp` the solver is fetched
+remotely (disabled by default), so `n challenge solving failed` leaves videos
+with no formats. Cookies are *not* used by default — a PO token
+alone unlocks formats, and an invalid cookie file actually poisons format
+access. A valid `cookies.txt` is only needed for the "sign in to confirm you're
+not a bot" / age-restricted subset (wire it via `YTDLP_COOKIES_*`, see
+`deploy/box-b/.env.example`); a 12-hour-cooldown'd operator alert fires when
+the **yt-dlp media path** trips bot-detection so the cookies can be refreshed.
+(The webpage-path bot-wall is a source-side outcome with no operator fix — it
+does not page.)
+
+**720p cap.** All video archives are capped at 720p to keep blobs small (a 4K
+video is gigabytes; 720p is tens-to-low-hundreds of MB) — YouTube via the
+yt-dlp format selector (`bestvideo[height<=720]…`), tweet video by picking the
+best mp4 variant whose smaller dimension is ≤720p.
+
+**Residential last-ditch egress (opt-in).** YouTube bot-walls Box B's
+datacenter IP regardless of cookies. As a *last-ditch fallback* — only after the
+PO-token and cookie retries have both failed on the datacenter IP — the worker
+makes one final attempt out a **residential IP** over a WireGuard tunnel; the
+datacenter IP stays the default for everything else, so the home line is used
+sparingly. A **`wg` sidecar** (`deploy/box-b/wg-sidecar`) owns the
+archive-worker's network namespace (`network_mode: service:wg`) and brings up
+`wg0` to the home gateway with `Table = off` + a PostUp **source rule**
+(`ip rule from <wg0-ip> lookup <table>`, that table's default via `wg0`). On the
+last-ditch retry the worker's SSRF safe-proxy source-binds its outbound socket
+to that wg0 IP (`RESIDENTIAL_EGRESS_SOURCE_IP`), so only that one download's
+packets traverse the tunnel — `bgutil-provider`, the `10.0.0.2` VPC, and the
+datacenter default path all stay on the compose network. SSRF validation runs
+before the bind, so it is never weakened. Off unless `RESIDENTIAL_EGRESS_SOURCE_IP`
++ `WG_SIDECAR_CONF` are set. `RESIDENTIAL_ALWAYS_DOMAINS` (empty by default) is an
+optional override to send specific hosts residential on the first try, and
+`residential-egress.ts`'s `fallback` mode is reusable for a future
+webpage/cross-job residential retry.
+
+## Archive rescue: finding a publicly-archivable alternative
+
+A capture fails for ordinary reasons all the time — a paywall, a bot
+wall, a JavaScript-only page that renders nothing for a headless browser.
+Since 0.8.0 a terminal *public webpage* failure isn't the end of the
+line. The API runs an **archive-rescue** pass
+(`api/src/archive-rescue.ts`) that looks for a different public URL
+serving the same content and queues *that* for archiving.
+
+The renderer also refuses to *store* an obvious block page in the first
+place: if a capture lands on an anti-bot / consent / sign-in interstitial
+— YouTube's "sign in to confirm you're not a bot" wall, a redirect to
+`consent.youtube.com` / `accounts.google.com`, or a host-agnostic
+bot-challenge shell (Cloudflare `/cdn-cgi/challenge-platform/` /
+"Just a moment…", DataDome, PerimeterX) — it fails the job
+(`anti_bot_wall`) instead of saving the multi-KB challenge shell as a
+"successful" archive. The detector uses high-confidence fingerprints only
+so it never rejects a real article; the YouTube/consent walls fail
+permanently (they won't pass without cookies, so rescue runs now) while a
+Cloudflare-style challenge is retryable (a later attempt or the Wayback
+rescue may reach the real page).
+
+Render robustness (capture path): the whole-render timeout is sized to
+clear nav + settle + scroll + SingleFile, and the scroll-to-bottom pass is
+bounded by a **wall-clock** budget that reserves headroom for SingleFile —
+previously a long / infinite-scroll page could consume the entire timeout
+and fail on every attempt. Transient HTTP statuses (5xx, 429, 408, 425)
+are retryable (other 4xx are the page's real state), retries use a short
+exponential backoff so a fast-failing source doesn't burn all attempts in
+a second, and a capture whose Blossom upload succeeded but whose success
+callback didn't reach Box A is kept as a stored `ok` archive (re-delivered
+by the audit) rather than being failed and refunded.
+
+Candidates come from several sources, gathered together and ranked by
+confidence:
+
+- **URL variants** — http↔https, www↔bare, query/fragment stripped,
+  AMP/print views. The cheapest fix for a flaky publisher URL.
+- **Wayback / archive.today** — an existing public snapshot of the URL.
+  Wayback is queried for the snapshot closest to when the user *bookmarked*
+  the page (via the availability `timestamp=`, not just "newest"), and
+  archive.today is probed **directly** through its `/newest/` timegate —
+  not only via web search. archive.today often holds captures of
+  paywalled / bot-walled pages Wayback misses, and is the practical
+  replacement for the now-dead Google Cache.
+  **Save Page Now (opt-in):** to *create* Wayback snapshots rather than only
+  consume them, the API can submit public webpage URLs to the Internet
+  Archive's Save Page Now — on lifetime enqueue **and** on a render failure —
+  so IA captures the page from its own infrastructure (often past the
+  datacenter-IP bot-walls that block Box B's renderer) and a later rescue pass
+  finds the new snapshot. Off by default; enable with `WAYBACK_SPN_ENABLED=1`
+  and, for async job IDs + far higher rate limits, an `archive.org` S3 key in
+  `WAYBACK_SPN_S3_KEY` (`accesskey:secret`). Public webpages only — never
+  private/encrypted archives or the media add-on — and deduped to one submit
+  per URL per day (Redis `SET NX`). See `api/src/wayback-spn.ts`; log line
+  `save-page-now submitted` carries the status/job_id.
+- **Scholarly open-access PDFs** — if the URL carries a DOI or Elsevier
+  PII, the rescuer derives publisher PDF variants and queries OpenAlex /
+  Crossref for the open-access copy. A paywalled journal article becomes
+  its open full-text PDF.
+- **Tweet rescue (canonical x.com via FixTweet)** — `x.com` /
+  `twitter.com` render client-side and block scrapers, so a direct
+  capture is an empty shell, and the public Nitter mirror ecosystem is
+  dead. A tweet rescue therefore surfaces a single canonical `x.com`
+  candidate, verified against the FixTweet JSON API (the same check the
+  worker performs), and enqueues that — the worker rebuilds the tweet
+  from the API by status id (see the X/tweet capture section above). No
+  Nitter mirror is ever fetched or enqueued; the old `X_MIRROR_HOSTS` /
+  `isSocialMirrorPair` / "<id> nitter" searxng discovery was removed in
+  commit `061cdc1`. Box B's `parseTweetUrl` does recognize Nitter-family
+  hosts (`xcancel.com`, `nitter.net`, `nitter.*`), so a directly-
+  bookmarked or rescued mirror link still rebuilds via FixTweet by status
+  id rather than rendering a dead mirror page.
+- **LLM + searxng** — a self-hosted [searxng](https://searxng.org)
+  metasearch and an open-source LLM suggest public mirrors and search
+  queries for the failed page.
+
+Every candidate must clear the same safety bar before it is fetched or
+archived, so the LLM and web search can never widen the attack surface:
+
+1. **SSRF guard** — the candidate is DNS-resolved and rejected if it maps
+   to a private/internal address; the final URL is re-checked after
+   redirects, and fetches are range- and content-type-bounded.
+2. **Same-item binding** — a candidate is only accepted when it is a
+   known archive host, a *host-related* page, an identifier-matched
+   scholarly PDF (same DOI/PII), or a canonical `x.com` tweet rebuilt via
+   the FixTweet API matched to the *same tweet id*. An LLM hallucination
+   or a poisoned search result on an unrelated domain is dropped.
+
+The best verified candidate is enqueued as a normal public archive job
+(tagged with the original URL), and rescue jobs are themselves excluded
+from re-rescue so a failing rescue can't loop. Operators can re-run the
+pass over recorded failures with `deploy/admin.mjs archive-rescue --run`.
+
+Media archives (video/audio) are best-effort and are not rescued — most
+links simply have no downloadable media, which is an expected outcome
+rather than a failure to recover from.
+
+## Blossom Fanout
+
+Archives are stored on Deepmarks' Blossom server and mirrored to default
+backup Blossom servers. Users can add their own trusted or paid Blossom
+servers from settings. Those user-supplied mirrors are included on new
+archive jobs.
+
+The Deepmarks Blossom primary is public-read and write-restricted.
+Only the Deepmarks archive worker can upload or delete blobs. Lifetime
+members get archive storage through Deepmarks bookmark/archive workflows,
+not direct Blossom upload access. See [blossom.md](blossom.md).
+
+Blossom is hash-addressed, but hashes do not make arbitrary bytes
+operationally harmless. The worker caps webpage/general direct-file
+archives at 150 MB. Media add-on captures — hosted yt-dlp downloads,
+direct image/audio/video files, and podcast enclosures — use the
+media cap, 2 GB by default, and the Box A Caddy edge rejects Blossom
+write request bodies over 2 GB before object storage sees them.
+
+The client gate for "this bookmark has archivable media"
+(`isPotentialMediaUrl` in `frontend/src/lib/media-archive.ts`) covers
+YouTube/Vimeo/Rumble/Odysee/PeerTube/Twitch plus SoundCloud, Bandcamp,
+Mixcloud, Dailymotion, Streamable, BitChute, Kick, the podcast hosts, and
+any direct audio/video/image/stream/Blossom-blob URL. A non-media URL on a
+matched host fails once and is then held off by the failed-media cooldown,
+so the host list errs toward coverage.
+
+Deleting an archive removes the account record, deletes Deepmarks'
+primary blob/thumbnail, and queues best-effort BUD-01 DELETE requests
+for known Blossom mirrors. Full account deletion runs the same cleanup
+for every archive owned by that pubkey.
+
+## Downloads
+
+Users can download:
+
+- one archived page from an archived bookmark row
+- one file from a multi-file scholarly archive, such as rendered HTML
+  or PDF
+- one archived media file from a bookmark row's archive action menu
+- one archived page from `/app/archives`
+- a zip of all completed archives from settings
+
+Private downloads decrypt in the browser or native app before opening or
+packaging. Mobile native shells hide ordinary page-download controls, but
+keep media downloads visible so a buyer can save the decrypted personal
+copy to the device.
+
+## Reliability Notes
+
+The archive queue is the main scaling bottleneck. Current production
+runs on Box B with Docker `cpus: "1.5"` and `MAX_CONCURRENT_JOBS=1`
+(lowered from the code default of 4 via
+`deploy/box-b/compose.yml`'s `${MAX_CONCURRENT_JOBS:-1}` so large
+blob uploads and mirror fanout stay under Linode's outbound-bandwidth
+threshold). If many users archive at once, jobs queue instead of
+running unbounded browser processes.
+
+Client backfills queue at most 250 missing archives per run and keep a
+short local dedupe map so the web app and extension do not repeatedly
+enqueue the same URL while workers are still processing earlier jobs.
+When `/account/archive-queue` reports outstanding server jobs, the web
+app polls about every 30 seconds and waits for the queue to drain before
+adding more.
+
+Retryable worker failures are pushed to the back of the Redis queue with
+an incremented attempt count. There is no sleeping retry slot, so a single
+bad URL cannot occupy one of the limited Playwright workers while healthy
+jobs wait behind it.
+
+On redeploy the archive-worker container gets a `stop_grace_period` of
+150s (`deploy/box-b/compose.yml`) so `shutdown()` can drain in-flight
+renders (up to render-timeout + 10s, ~130s) instead of being SIGKILLed
+mid-capture and marking those jobs "lost before completion".
+
+Operations and payment details live in [lightning.md](lightning.md#lifetime-archives)
+and the host topology lives in [architecture.md](architecture.md#archive-a-page-lifetime).
+
+## Archive-keys set chunking
+
+The user's encrypted archive-key map (`{blobHash | job:<jobId> → AES
+key}`) is stored as kind:30003 events with NIP-44 v2 encrypted content.
+NIP-44 plaintext is capped at ~50 KB by our chunker
+(`MAX_CHUNK_PLAINTEXT_BYTES = 50_000` in `archive-keys.ts`, well under
+the ~64 KB NIP-44 spec ceiling), so users with several hundred
+archives overflow a single event. The map is chunked across multiple
+events with the same shape as the private bookmark set:
+
+| d-tag | Notes |
+|---|---|
+| `deepmarks-archive-keys` | chunk 0 — always present; carries `dm-set-version` + `dm-set-count` tags when chunking is in play |
+| `deepmarks-archive-keys-1` | chunk 1; same version tag |
+| `deepmarks-archive-keys-N` | chunk N |
+
+On read, the client fetches chunk 0, reads `dm-set-count`, fetches the
+remaining chunks in one `#d` filter, decrypts each, and merges. On
+write, the entire map is re-chunked and republished; chunks 1..N are
+stamped with a slightly earlier `created_at` than chunk 0 so chunk 0
+remains the newest replaceable event for its d-tag and the reader can
+treat it as the entrypoint.
+
+Single-chunk users (under ~600 archives) still produce a layout with no
+version/count tags so the older single-event readers stay compatible.
+
+## Local stash + reconciliation
+
+When the user enqueues an archive client-side, the AES key is
+generated locally and stashed in `localStorage` under
+`deepmarks-pending-archive-keys`, keyed by the worker `jobId`. The
+client also immediately publishes that key into the chunked NIP-51 set
+under `job:<jobId>`. This provisional key is the cross-device recovery
+path for the period between job acceptance and archive completion.
+`reconcileArchiveKeys` is still called when the user opens
+`/app/archives` and from the `my-archives` loader; it promotes stashed
+job keys to permanent blob-hash and per-file entries after the archive
+list shows a completed record.
+
+If a user opens a private archive (download or in-row preview) before
+reconcile has run, the client checks the key map by blob hash, then by
+`job:<jobId>`, then falls back to the local stash by `jobId`. This keeps
+the user's data decryptable on the device that created it and on other
+signed-in devices once the provisional key publish reaches relays.
+
+If a completed private archive record still has no recoverable key after
+local stash reconciliation, forced relay refresh, and the browser
+extension reconcile bridge, the client treats that record as not yet
+openable, but the completed archive record stays visible. Missing-key
+state is local repair metadata; it must not hide a public `blossom` tag,
+an `/account/archives` row, or an archive icon. Lifetime backfill can
+queue a replacement private archive with a fresh client-generated key
+even when the user has archive-all disabled. Missing-key replacement
+jobs intentionally bypass normal URL dedupe because the old ciphertext
+is unrecoverable without its lost AES key. Automatic retries are bounded
+per URL (daily cooldown, three attempts across a 14-day window); the
+archived-bookmarks view also exposes a manual **retry failed** action
+that forces another queue pass for failed and missing-key archive
+records.
+
+## Cross-user blob refcount
+
+Archive blobs are content-addressed (SHA-256 of the bytes). Two users
+archiving the same URL can share one set of bytes in Blossom when the
+rendered output is byte-identical.
+
+Without a refcount, the first user to delete their archive would also
+take everyone else's copy with them. The `dm:archive-refs:<blobHash>`
+Redis SET tracks every pubkey that references a blob:
+
+- the refcount key is the `blobHash` itself.
+- media add-ons also store `videoContentKey` metadata such as
+  `yt:<videoId>`, but private video bytes are encrypted with a per-user
+  key and are not deduped by source URL.
+
+On archive callback success the worker's owner pubkey is `SADD`'d.
+On delete the pubkey is `SREM`'d; the actual Blossom DELETE only fires
+when `SCARD` reaches 0.
+
+On first deploy of the refcount module the proxy runs a one-shot
+`backfillFromExistingArchives` pass that scans every
+`dm:archives:<pubkey>` hash and populates the corresponding ref sets,
+so the very first delete after rollout can't unilaterally destroy a
+blob another user references.
+
+## Lifetime archive backfill across kinds
+
+The server-side `lifetime-archive-backfill` worker (Box A) pulls
+public bookmarks out of two sources when a user first becomes a
+lifetime member:
+
+- `kind:39701` (Deepmarks-native public bookmarks) via the
+  `dm:public-bookmarks:author:<pubkey>` ZSET indexer cache.
+- `kind:10003` (NIP-51 single bookmark list — Damus/Primal/Amethyst's
+  "pinned URLs") via a one-shot `r`-tag scan against strfry.
+
+URLs that appear in both kinds dedup so the same archive isn't
+queued twice. The worker still caps per-pubkey enqueues at
+`MAX_ENQUEUE_PER_PUBKEY` so a heavy importer doesn't starve newer
+saves.
+
+## Relay configuration
+
+Worker chunks are large (webpage output up to the 150 MB capture
+cap; media add-on blobs up to 2 GB; SingleFile output up to 150 MB).
+Archive *keys* and *private bookmark chunks* are modest but still
+routinely exceed `strfry`'s default 64 KB event size. `deploy/box-a/strfry/strfry.conf` raises `maxEventSize` to
+**512 KB** so all our addressable encrypted events land on
+`relay.deepmarks.org`. Users with smaller libraries never notice; the
+cap matters once a chunk is full.

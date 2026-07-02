@@ -1,0 +1,151 @@
+# Box B — archive worker.
+# Pulls jobs from Box A's Redis over the VPC (10.0.0.2:6379).
+# No inbound ports; outbound only for Wayback, Blossom mirrors, S3.
+
+services:
+  archive-worker:
+    build: ../../archive-worker
+    restart: unless-stopped
+    # Run inside the wg sidecar's network namespace so the worker's safe-proxy
+    # can source-bind to the wg0 IP for the residential last-ditch retry. The
+    # sidecar is on the compose network, so bgutil-provider, the 10.0.0.2 VPC,
+    # and the datacenter default path all still work — only traffic sourced from
+    # RESIDENTIAL_EGRESS_SOURCE_IP uses the tunnel.
+    network_mode: "service:wg"
+    depends_on:
+      - wg
+    cpus: "1.5"
+    # Default docker stop grace is 10s, but shutdown() drains in-flight jobs
+    # for up to render-timeout + 10s (130s). 10s was SIGKILLing renders
+    # mid-flight on deploy and marking them "lost before completion".
+    stop_grace_period: 150s
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD_URLENC}@10.0.0.2:6379
+      ARCHIVE_WORKER_NSEC: ${ARCHIVE_WORKER_NSEC}
+      PAYMENT_PROXY_URL: http://10.0.0.2:4000
+      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET}
+      BLOSSOM_PRIMARY_URL: https://blossom.deepmarks.org
+      BLOSSOM_MIRROR_URLS: ${BLOSSOM_MIRROR_URLS:-https://blossom.primal.net}
+      YTDLP_COOKIES_FILE: ${YTDLP_COOKIES_FILE:-}
+      # PO-token provider for YouTube (the bgutil-provider sidecar). YouTube
+      # gates most formats behind a BotGuard token; the worker's yt-dlp plugin
+      # fetches one from here. Blank disables it (anonymous 360p only).
+      YTDLP_POT_PROVIDER_URL: ${YTDLP_POT_PROVIDER_URL:-http://bgutil-provider:4416}
+      # Selective residential egress. A wg0 source IP that a Box B source route
+      # sends out a residential WireGuard tunnel; always-residential hosts
+      # (RESIDENTIAL_ALWAYS_DOMAINS, default youtube.com,youtu.be) source-bind
+      # the yt-dlp safe proxy to it so those downloads leave a residential IP
+      # instead of the datacenter IP. Blank = off (datacenter IP for all).
+      RESIDENTIAL_EGRESS_SOURCE_IP: ${RESIDENTIAL_EGRESS_SOURCE_IP:-}
+      RESIDENTIAL_ALWAYS_DOMAINS: ${RESIDENTIAL_ALWAYS_DOMAINS:-}
+      # Lowered 4 -> 1 so large archive blobs and mirror fanout stay under
+      # Linode's 10 Mb/s notification threshold. Each job uploads to Box A
+      # and then mirrors, so throughput doubles across A/B during successes.
+      # This is deliberately background preservation, not realtime capture.
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
+      PLAYWRIGHT_NAV_TIMEOUT_MS: "30000"
+      # 120s outer cap — the slow-scroll lazy-load pass alone can take
+      # ~60s on long article pages, plus networkidle waits + the
+      # SingleFile capture step. Was 60s before the render-quality
+      # tightening; jobs were being aborted mid-scroll and capturing
+      # incomplete pages.
+      PLAYWRIGHT_RENDER_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_VIEWPORT: 1280x800
+      # Live render remains primary. If it fails, use the closest
+      # Wayback snapshot as a rescue source and store those bytes in
+      # Blossom instead of losing the archive.
+      WAYBACK_MAX_AGE_DAYS: ${WAYBACK_MAX_AGE_DAYS:-36500}
+      ARCHIVE_AUDIT_INTERVAL_MS: ${ARCHIVE_AUDIT_INTERVAL_MS:-600000}
+      ARCHIVE_AUDIT_STALE_AFTER_SECONDS: ${ARCHIVE_AUDIT_STALE_AFTER_SECONDS:-7200}
+      ARCHIVE_AUDIT_MAX_JOBS: ${ARCHIVE_AUDIT_MAX_JOBS:-1000}
+      # Bound the audit loop so a large archive history cannot prevent
+      # dm:archive-audit:last from being refreshed.
+      ARCHIVE_AUDIT_MAX_RUNTIME_MS: ${ARCHIVE_AUDIT_MAX_RUNTIME_MS:-240000}
+      MEDIA_ARCHIVE_MAX_BYTES: ${MEDIA_ARCHIVE_MAX_BYTES:-2147483648}
+      MEDIA_ARCHIVE_TMPDIR: /var/tmp/deepmarks-archive
+      WORKER_HEARTBEAT_INTERVAL_MS: "10000"
+      STAGED_BLOB_TTL_SECONDS: "900"
+      LOG_LEVEL: info
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+      - /home/worker:size=256m,mode=700,uid=1001,gid=1001
+    volumes:
+      - /mnt/deepmarks-archive-tmp/archive-worker:/var/tmp/deepmarks-archive
+      # Optional yt-dlp cookies (fixes YouTube "Sign in to confirm you're not
+      # a bot"). Set YTDLP_COOKIES_HOST_FILE to the host cookies.txt path and
+      # YTDLP_COOKIES_FILE=/run/secrets/yt-cookies.txt in .env to enable.
+      # Defaults to /dev/null (no-op) when unset. Mounted read-WRITE on purpose:
+      # yt-dlp rewrites the cookie jar after use to persist refreshed session
+      # tokens, which extends how long the cookies stay valid. The host file is
+      # worker-owned (uid 1001) 600, so only the worker can read/write it.
+      - ${YTDLP_COOKIES_HOST_FILE:-/dev/null}:/run/secrets/yt-cookies.txt
+    pids_limit: 512
+    mem_limit: 4g
+    shm_size: 2g
+
+  # ── WireGuard sidecar — residential last-ditch egress tunnel ────────
+  # Owns the network namespace the archive-worker runs in (above). Brings up
+  # wg0 to the home GL.iNet gateway with a source route (Table=off + a PostUp
+  # `ip rule from <wg0-ip>`), so ONLY traffic the worker source-binds to
+  # RESIDENTIAL_EGRESS_SOURCE_IP uses the tunnel — the last-ditch residential
+  # retry. Everything else (bgutil-provider, 10.0.0.2 VPC, datacenter default)
+  # stays on the compose network. Config = the GL.iNet client profile rewritten
+  # with Table=off + the source rule, at WG_SIDECAR_CONF (host path; blank = no
+  # tunnel, worker runs datacenter-only).
+  wg:
+    build: ./wg-sidecar
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - ${WG_SIDECAR_CONF:-/dev/null}:/etc/wireguard/wg0.conf:ro
+    mem_limit: 64m
+
+  # ── PO-token provider for yt-dlp / YouTube ──────────────────────────
+  # YouTube now gates most formats behind a BotGuard "PO token". This
+  # sidecar mints them; the worker's yt-dlp bgutil plugin fetches one per
+  # request at http://bgutil-provider:4416. Internal only (compose network),
+  # never exposed publicly. Upstream image is maintained and updated as
+  # YouTube changes — pull a newer tag if format access regresses.
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    restart: unless-stopped
+    cpus: "0.5"
+    mem_limit: 1g
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "4416"
+
+  # ── strfry replica — live second copy of relay.deepmarks.org ────────
+  # Box A's strfry-stream sidecar pushes every new event here over the
+  # VPC within seconds, cutting the relay's recovery point from "last
+  # nightly export" (~24h) to near-zero. VPC-only — never exposed
+  # publicly. Seed once after first boot (and after any DB reset):
+  #   ssh <box-a> 'cd /opt/deepmarks-repo/deploy/box-a && \
+  #     docker compose exec -T strfry strfry export' | \
+  #   docker compose exec -T strfry-replica strfry import
+  strfry-replica:
+    build: ../box-a/strfry
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').createConnection(7777,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1));setTimeout(()=>process.exit(2),3000)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./strfry-replica.conf:/etc/strfry.conf:ro
+      - strfry-replica-db:/var/lib/strfry
+    ports:
+      - "10.0.0.3:7777:7777"
+
+volumes:
+  strfry-replica-db:
