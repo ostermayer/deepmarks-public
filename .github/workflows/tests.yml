@@ -1,0 +1,57 @@
+# CI — every package's test suite + typechecks on every push/PR.
+#
+# The /tests tree holds all suites (see tests/README.md); each package's
+# vitest config points at its subdirectory, and the committed
+# tests/<package>/node_modules symlinks resolve against the package's
+# own dependency tree once `npm ci` has run there. The byte-parity guard
+# (shared private-set core) and the strfry writePolicy subprocess tests
+# run as part of the frontend / api suites respectively.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: frontend
+            typecheck: npm run check
+          - package: api
+            typecheck: npx tsc --noEmit
+          - package: archive-worker
+            typecheck: npx tsc --noEmit
+          - package: browser-extension
+            typecheck: npm run typecheck
+          - package: bunker
+            typecheck: npx tsc --noEmit
+    name: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - name: install
+        working-directory: ${{ matrix.package }}
+        run: npm ci
+      - name: stub svelte-kit tsconfig for cross-package imports
+        if: matrix.package == 'browser-extension'
+        # The extension's parity tests import frontend source directly;
+        # vite resolves frontend/tsconfig.json, which extends the
+        # GENERATED .svelte-kit/tsconfig.json. Stub it — the extension
+        # transpiles the imported file with its own config regardless.
+        run: mkdir -p frontend/.svelte-kit && echo '{}' > frontend/.svelte-kit/tsconfig.json
+      - name: typecheck
+        working-directory: ${{ matrix.package }}
+        run: ${{ matrix.typecheck }}
+      - name: test
+        working-directory: ${{ matrix.package }}
+        run: npx vitest run

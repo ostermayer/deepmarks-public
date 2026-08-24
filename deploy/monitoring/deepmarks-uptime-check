@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# deepmarks-uptime-check — sovereign external pinger.
+#
+# Lives on Box C and pings the three boxes. Alerts on three consecutive
+# failures so a transient blip doesn't email. State (consecutive failure
+# counter) lives in /var/lib/deepmarks-uptime/.
+#
+# Targets:
+#   - Box A: GET https://api.deepmarks.org/health        (Caddy + api)
+#   - Box B: archive-worker health via Box A API         (worker heartbeat,
+#                                                         queue age, in-flight
+#                                                         jobs, audit status)
+#   - Box A: blossom-server via /health/blossom          (primary Blossom)
+#   - Box C: docker healthcheck of the bunker container  (no host port —
+#                                                         deliberate hardening)
+#
+# Run via cron every 5 min. The ALERT KEYS are per-target so a Box A
+# outage doesn't suppress a separate Box C outage.
+
+set -euo pipefail
+
+# Cron's default PATH is /usr/bin:/bin — deepmarks-alert lives in
+# /usr/local/bin and runuser/other admin tools live in /usr/sbin, so
+# without this every alert this script tried to send from cron died on
+# "command not found", silently (cron line discards stderr). Found
+# 2026-07-17 after .fail counters had grown for weeks with zero emails
+# delivered; /usr/sbin added same day after the resource-check backup
+# probe kept false-positiving from cron for the same reason.
+export PATH="/usr/local/bin:/usr/sbin:/sbin:$PATH"
+
+STATE_DIR=/var/lib/deepmarks-uptime
+THRESHOLD=3                # consecutive failures before alerting
+# /health/archive does real Redis work (pending sample + SLA sweep over
+# ~1k terminal records) and has been measured at 14s under drill/backlog
+# load while still returning 200 — a 10s timeout made the probe fail on
+# latency alone and flap down/recovered around the boundary. 30s keeps
+# the worst case (5 HTTP probes × 30s) inside the 5-min cron interval.
+TIMEOUT=30                 # per-probe seconds
+
+mkdir -p "$STATE_DIR"
+chmod 700 "$STATE_DIR"
+
+# ── helpers ────────────────────────────────────────────────────────────
+
+bump_failure() {
+  local target="$1"
+  local f="$STATE_DIR/$target.fail"
+  local n=$(( $(cat "$f" 2>/dev/null || echo 0) + 1 ))
+  echo "$n" > "$f"
+  echo "$n"
+}
+
+reset_failure() {
+  local target="$1"
+  local f="$STATE_DIR/$target.fail"
+  if [ -s "$f" ]; then
+    local was
+    was=$(cat "$f")
+    rm -f "$f"
+    if [ "$was" -ge "$THRESHOLD" ]; then
+      # Recovery: emit an info alert so the operator sees the outage closed.
+      deepmarks-alert info "uptime-recover-$target" \
+        "$target recovered" \
+        "Probe success after $was consecutive failures."
+    fi
+  fi
+}
+
+probe_docker_health() {
+  local name="$1"
+  local container="$2"
+  if [ "$(docker inspect -f '{{.State.Health.Status}}' "$container" 2>/dev/null)" = "healthy" ]; then
+    reset_failure "$name"
+  else
+    n=$(bump_failure "$name")
+    if [ "$n" -ge "$THRESHOLD" ]; then
+      deepmarks-alert critical "uptime-$name" \
+        "$name unhealthy for $n consecutive probes" \
+        "docker healthcheck for $container is not 'healthy' on this box." \
+        "Check docker ps + docker logs $container."
+    fi
+  fi
+}
+
+probe_http() {
+  local name="$1"
+  local url="$2"
+  if curl -sS -o /dev/null --max-time "$TIMEOUT" -w '%{http_code}\n' "$url" 2>/dev/null \
+      | grep -q '^20[02]$'; then
+    reset_failure "$name"
+  else
+    n=$(bump_failure "$name")
+    if [ "$n" -ge "$THRESHOLD" ]; then
+      deepmarks-alert critical "uptime-$name" \
+        "$name unreachable for $n consecutive probes" \
+        "Probe URL: $url" \
+        "Check Caddy + service container on the target box."
+    fi
+  fi
+}
+
+# ── main ───────────────────────────────────────────────────────────────
+
+probe_http "box-a"      "https://api.deepmarks.org/health"
+# Relay WRITE-path probe: /health/relay returns 503 when the publish
+# queue has work but nothing has been forwarded to strfry for 15 min —
+# the failure mode every read-only probe stays green through.
+probe_http "relay-write" "https://api.deepmarks.org/health/relay"
+probe_http "archive-worker" "https://api.deepmarks.org/health/archive"
+# Primary Blossom liveness via the api's container-direct probe.
+# blossom.deepmarks.org/ itself is a static Caddy landing page that
+# stays green when the blossom-server container is dead.
+probe_http "blossom-primary" "https://api.deepmarks.org/health/blossom"
+# The bunker publishes NO host port (deliberate hardening — SSH is Box
+# C's only listener), so the old 127.0.0.1:4100 probe failed forever
+# once that bind was removed. Ask its Docker healthcheck instead.
+probe_docker_health "box-c" "box-c-bunker-1"

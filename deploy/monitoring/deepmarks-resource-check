@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+# deepmarks-resource-check — host-level resource alerter.
+#
+# Runs on every box via cron (15 min). Alerts on:
+#   - Disk > 80% on any non-tmpfs partition
+#   - Memory > 90%
+#   - Container restart count > 3 in last hour (per-container key)
+#   - Box A backup/restore/Object Storage safety timers failed or stale
+#   - Redis persistence reports failed RDB/AOF writes
+#   - Blossom is not configured for S3 or is accumulating local blobs
+#   - Voltage LND macaroon expiry < 30 days (Box A only — silent skip
+#     when /etc/deepmarks-monitoring.env doesn't define VOLTAGE_MACAROON_PATH)
+
+# This is a best-effort monitor: one failed probe or alert send should not
+# stop the rest of the checks from running.
+set -uo pipefail
+
+# Cron's default PATH is /usr/bin:/bin — deepmarks-alert lives in
+# /usr/local/bin and runuser lives in /usr/sbin, so without this every
+# alert from cron died on "command not found", silently (cron discards
+# stderr), and the backup-timer probe below false-positived (runuser
+# not found ⇒ "cannot query user systemd" even with backups healthy).
+# Same bug as deepmarks-uptime-check, found 2026-07-17.
+export PATH="/usr/local/bin:/usr/sbin:/sbin:$PATH"
+
+DISK_PCT_LIMIT=80
+MEM_PCT_LIMIT=90
+RESTART_LIMIT=3
+MACAROON_DAYS_WARN=30
+BLOSSOM_LOCAL_BLOBS_MB_LIMIT=256
+BACKUP_SERVICE_MAX_AGE_SECONDS=172800
+REPLICA_MAX_EVENT_AGE_SECONDS=3600
+ARCHIVE_TMP_MOUNT=/mnt/deepmarks-archive-tmp
+ARCHIVE_TMP_DELETED_MB_LIMIT=10240
+
+ENV_FILE=/etc/deepmarks-monitoring.env
+if [ -r "$ENV_FILE" ]; then
+  set -a
+  # shellcheck source=/etc/deepmarks-monitoring.env
+  . "$ENV_FILE"
+  set +a
+fi
+
+load_box_a_env_var() {
+  local var="$1"
+  local env_file="${BOX_A_ENV_FILE:-/opt/deepmarks-repo/deploy/box-a/.env}"
+  if [ -n "${!var:-}" ] || [ ! -r "$env_file" ]; then
+    return
+  fi
+  local value
+  value="$(awk -F= -v key="$var" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$env_file" \
+    | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+  if [ -n "$value" ]; then
+    printf -v "$var" '%s' "$value"
+  fi
+}
+
+send_alert() {
+  deepmarks-alert "$@" || true
+}
+
+# ── disk ───────────────────────────────────────────────────────────────
+# No -P: GNU df treats -P and --output as mutually exclusive, so the
+# old `df -P --output=…` errored on every run and the loop below never
+# executed — disk alerts silently never fired (found 2026-07-17 in the
+# same sweep as the cron-PATH bug; --output already implies GNU df).
+df --output=source,pcent,target -x tmpfs -x devtmpfs -x squashfs 2>/dev/null \
+| tail -n +2 | while read -r src pct mount; do
+  pct_num="${pct%\%}"
+  if [ "$pct_num" -ge "$DISK_PCT_LIMIT" ]; then
+    send_alert warning "disk-$src" \
+      "disk $mount at ${pct} on $(hostname)" \
+      "Filesystem $src mounted at $mount is at $pct of capacity." \
+      "Investigate large directories: du -sh $mount/* | sort -h | tail -10"
+  fi
+done
+
+# ── deleted-but-open file space on archive-tmp (Box B only) ───────────
+# Space pinned by fds on unlinked files is invisible to du — the disk
+# probe above fires at 80% but its suggested du investigation comes up
+# empty. 2026-07-20: leaked upload-body streams in archive-worker pinned
+# 93GB of deleted .dmchunk temps this way and the mount hit 100%
+# (docs/incidents/2026-07-20-archive-tmp-fd-leak.md). Probe it directly
+# and fire at 10GB, long before the disk-percent alert.
+#
+# lsof is scanned unscoped and filtered by device number in awk: passing
+# the mount path to lsof does NOT reliably restrict output to that
+# filesystem (observed listing root-fs files during the incident).
+if mountpoint -q "$ARCHIVE_TMP_MOUNT" 2>/dev/null && command -v lsof >/dev/null 2>&1; then
+  fs_dev="$(mountpoint -d "$ARCHIVE_TMP_MOUNT" 2>/dev/null | tr ':' ',')"
+  if [ -n "$fs_dev" ]; then
+    # +L1 lists only open files with zero links (deleted). Columns:
+    # COMMAND PID USER FD TYPE DEVICE SIZE/OFF NLINK NODE NAME.
+    # Sum unique inodes so multiply-opened files aren't double-counted.
+    deleted_stats="$(lsof +L1 2>/dev/null | awk -v dev="$fs_dev" '
+      $5 == "REG" && $6 == dev { fds++; if (!seen[$9]++) mb += $7 / 1048576 }
+      END { printf "%d %d", mb, fds }')"
+    deleted_mb="${deleted_stats% *}"
+    deleted_fds="${deleted_stats#* }"
+    if [ "${deleted_mb:-0}" -ge "$ARCHIVE_TMP_DELETED_MB_LIMIT" ] 2>/dev/null; then
+      send_alert warning "archive-tmp-deleted-fds" \
+        "${deleted_mb}MB of deleted files held open on $(hostname)" \
+        "Processes hold ${deleted_fds} open fds on deleted files under $ARCHIVE_TMP_MOUNT — space df counts but du cannot see. Known cause: leaked upload-body streams in archive-worker (docs/incidents/2026-07-20-archive-tmp-fd-leak.md)." \
+        "Inspect holders: lsof +L1 | grep '$fs_dev'. If archive-worker is the holder, recreating it releases the space: cd /opt/deepmarks-repo/deploy/box-b && docker compose up -d --force-recreate archive-worker"
+    fi
+  fi
+fi
+
+# ── strfry replica freshness (Box B only) ─────────────────────────────
+# The replica receives a live stream from Box A. If no event has landed
+# recently while the container is up, the stream is broken (router
+# wedged, firewall regressed, replica rejecting writes) and the replica
+# is silently drifting back toward nightly-export staleness — exactly
+# what it exists to prevent. Threshold: 14 days of production traffic
+# measured 2026-08-04 showed a max inter-event gap of 24 min (mean 24s),
+# so an hour of silence is ~2.5x the worst legitimate lull. The
+# 2026-08-02 sidecar strand drifted for a day before the original 24h
+# version of this probe could fire
+# (docs/incidents/2026-08-04-strfry-replica-stale-sidecar-strand.md).
+replica_container=$(docker ps --format '{{.Names}}' 2>/dev/null | grep strfry-replica | head -1)
+if [ -n "$replica_container" ]; then
+  since=$(( $(date +%s) - REPLICA_MAX_EVENT_AGE_SECONDS ))
+  recent=$(docker exec "$replica_container" strfry scan --count "{\"since\":$since}" 2>/dev/null | tail -1)
+  if [ "$recent" = "0" ]; then
+    send_alert warning "strfry-replica-stale" \
+      "strfry replica has received no events in ${REPLICA_MAX_EVENT_AGE_SECONDS}s on $(hostname)" \
+      "The replication stream from Box A appears broken — the replica is drifting toward backup-only staleness. Box A's resource-check auto-revives a stranded strfry-stream sidecar within 15 min and reconciles the gap, so if this still fired the cause is likely elsewhere (router connected-but-wedged, VPC/firewall, replica rejecting writes) — or the auto-revive itself failed (look for a strfry-stream-revive-failed alert)." \
+      "On Box A: docker compose --profile replication ps strfry-stream, then its logs. VPC: nc -zv 10.0.0.3 7777. Reconcile: docker compose --profile replication run --rm strfry-stream strfry sync ws://10.0.0.3:7777 --dir up"
+  fi
+fi
+
+# ── strfry-stream replication sidecar watchdog (Box A only) ───────────
+# When strfry crashes, the pid-ns-sharing sidecar is SIGKILLed with it,
+# and its restart can race the relay's own restart: dockerd fails the
+# pid-namespace join ("restartmanger wait error"), gives up permanently,
+# and the sidecar sits Exited while the relay comes back healthy
+# (docs/incidents/2026-08-04-strfry-replica-stale-sidecar-strand.md).
+# autoheal cannot help — healthchecks never run on an Exited container —
+# so revive it here. `up -d` is idempotent (no-op while it's running,
+# and this probe only reaches it when it isn't). Box discrimination:
+# every box has the repo checkout, but only Box A runs a container named
+# *-strfry-1, and only Box A's gitignored .env defines COMPOSE_PROFILES.
+box_a_dir="${BOX_A_COMPOSE_DIR:-/opt/deepmarks-repo/deploy/box-a}"
+if [ -f "$box_a_dir/compose.yml" ] \
+   && docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|-)strfry-1$'; then
+  load_box_a_env_var COMPOSE_PROFILES
+  case "${COMPOSE_PROFILES:-}" in
+    *replication*)
+      compose_repl() {
+        docker compose --project-directory "$box_a_dir" --profile replication "$@"
+      }
+      if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|-)strfry-stream-1$'; then
+        if compose_repl up -d --no-deps strfry-stream >/dev/null 2>&1 \
+           && docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|-)strfry-stream-1$'; then
+          # The stream only forwards events from connect time — close
+          # the outage gap so the replica doesn't keep a permanent hole.
+          if timeout 900 compose_repl run --rm --no-deps strfry-stream \
+               strfry sync ws://10.0.0.3:7777 --dir up >/dev/null 2>&1; then
+            sync_note="and the replica was reconciled (strfry sync --dir up completed)"
+          else
+            sync_note="but the reconcile FAILED — run manually: cd $box_a_dir && docker compose --profile replication run --rm strfry-stream strfry sync ws://10.0.0.3:7777 --dir up"
+          fi
+          send_alert warning "strfry-stream-revived" \
+            "strfry-stream sidecar was down on $(hostname) — auto-revived" \
+            "The replication sidecar was not running (most likely killed alongside a strfry crash and stranded by the pid-namespace restart race). It has been restarted $sync_note." \
+            "Check why strfry crashed: docker logs --tail=50 box-a-strfry-1; dmesg -T | grep strfry"
+        else
+          send_alert critical "strfry-stream-revive-failed" \
+            "strfry-stream sidecar is down on $(hostname) and auto-revive failed" \
+            "The replication sidecar is not running and 'docker compose --profile replication up -d --no-deps strfry-stream' did not bring it up. The replica on 10.0.0.3 is drifting toward backup-only staleness." \
+            "Inspect: cd $box_a_dir && docker compose --profile replication ps -a strfry-stream && docker compose --profile replication logs --tail=50 strfry-stream"
+        fi
+      fi
+
+      # ── replica set-divergence probe (daily, 03:0x run) ─────────────
+      # Freshness and the watchdog catch a DEAD stream, but nothing
+      # catches a replica whose event SET quietly diverges from the
+      # primary (an event present on exactly one side). That state is
+      # invisible to every count-window probe and was found by accident
+      # on 2026-08-05 — one primary-committed event missing from the
+      # primary with no deletion trace, cause unproven because the
+      # container logs had rotated away with recreates
+      # (docs/incidents/2026-08-05-replica-surplus-event.md). Negentropy
+      # with --dir none is a read-only set comparison: "Have N" = events
+      # only the primary has (replica behind), "need M" = events only
+      # the replica has (primary lost something or the replica was
+      # written to directly). Daily because a full-DB reconcile costs a
+      # few seconds of CPU on both relays; REPLICA_DIVERGENCE_FORCE=1
+      # runs it regardless of the hour (manual/live-fire testing).
+      if [ "${REPLICA_DIVERGENCE_FORCE:-0}" = "1" ] \
+         || { [ "$(date +%H)" = "03" ] && [ "$(date +%M)" -lt 15 ]; }; then
+        # timeout(1) execs a real command — it cannot run the compose_repl
+        # shell function, so spell the compose invocation out here.
+        divergence_line=$(timeout 300 docker compose --project-directory "$box_a_dir" --profile replication \
+          run --rm --no-deps strfry-stream \
+          strfry sync ws://10.0.0.3:7777 --dir none 2>&1 | grep -o "Have [0-9]* need [0-9]*" | tail -1)
+        if [ -z "$divergence_line" ]; then
+          send_alert warning "strfry-replica-divergence-probe-failed" \
+            "replica divergence probe could not run on $(hostname)" \
+            "The daily negentropy set comparison (strfry sync --dir none against ws://10.0.0.3:7777) produced no parseable result. The replica may be unreachable or the sidecar image changed output format." \
+            "Run manually: cd $box_a_dir && docker compose --profile replication run --rm strfry-stream strfry sync ws://10.0.0.3:7777 --dir none"
+        else
+          div_have=$(printf '%s' "$divergence_line" | awk '{print $2}')
+          div_need=$(printf '%s' "$divergence_line" | awk '{print $4}')
+          if [ "${div_have:-0}" != "0" ] || [ "${div_need:-0}" != "0" ]; then
+            send_alert warning "strfry-replica-divergence" \
+              "strfry replica set divergence: primary-only=$div_have replica-only=$div_need" \
+              "Negentropy set comparison between the primary and the Box B replica is not converged. primary-only ($div_have) means the replica is missing events (stream gap — reconcile with --dir up). replica-only ($div_need) means the primary lacks events the replica holds — either something deleted them locally on the primary with no kind:5 trace, or something wrote directly to the replica; see docs/incidents/2026-08-05-replica-surplus-event.md for the id-diff procedure to identify the exact events." \
+              "Reconcile a stream gap: docker compose --profile replication run --rm strfry-stream strfry sync ws://10.0.0.3:7777 --dir up. For replica-only events, identify them by id-diff before deciding restore-vs-delete."
+          fi
+        fi
+      fi
+      ;;
+  esac
+fi
+
+# ── strfry LMDB map usage ──────────────────────────────────────────────
+# Hitting mapsize is a SILENT total write outage: every write fails with
+# MDB_MAP_FULL while reads (and every read-only probe) stay healthy.
+# data.mdb grows toward the configured map; alert well before the wall.
+# Loop over every strfry volume: the old `*strfry-db*` glob could never
+# match Box B's `strfry-replica-db` volume, so the replica — same growth
+# curve, same wall — was silently unmonitored (found 2026-08-05 while
+# handling the primary's 70% warning).
+STRFRY_MAPSIZE_BYTES="${STRFRY_MAPSIZE_BYTES:-21474836480}"
+for strfry_db_file in /var/lib/docker/volumes/*strfry*db*/_data/data.mdb; do
+  [ -f "$strfry_db_file" ] || continue
+  db_vol=$(basename "$(dirname "$(dirname "$strfry_db_file")")")
+  db_bytes=$(stat -c %s "$strfry_db_file" 2>/dev/null || echo 0)
+  db_pct=$(( db_bytes * 100 / STRFRY_MAPSIZE_BYTES ))
+  strfry_severity=""
+  if [ "$db_pct" -ge 85 ]; then strfry_severity=critical
+  elif [ "$db_pct" -ge 70 ]; then strfry_severity=warning; fi
+  if [ -n "$strfry_severity" ]; then
+    send_alert "$strfry_severity" "strfry-mapsize-$db_vol" \
+      "strfry LMDB ($db_vol) at ${db_pct}% of mapsize on $(hostname)" \
+      "data.mdb in volume $db_vol is ${db_bytes} bytes of the ${STRFRY_MAPSIZE_BYTES}-byte map. At 100% every write fails (MDB_MAP_FULL) while reads stay green." \
+      "Raise dbParams.mapsize in deploy/box-a/strfry/strfry.conf (primary) or deploy/box-b/strfry-replica.conf (replica), recreate that container with --force-recreate (safe for LMDB; conf is a bind-mounted file, so a plain up -d keeps the pre-pull inode), then update STRFRY_MAPSIZE_BYTES in /etc/deepmarks-monitoring.env."
+  fi
+done
+
+# ── memory ─────────────────────────────────────────────────────────────
+mem_used_pct=$(free | awk '/^Mem:/ {printf "%d", ($2-$7)*100/$2}')
+if [ "$mem_used_pct" -ge "$MEM_PCT_LIMIT" ]; then
+  send_alert warning "mem-pressure" \
+    "memory at ${mem_used_pct}% on $(hostname)" \
+    "Available memory below threshold. Check 'docker stats' for the heaviest container."
+fi
+
+# ── container restart counts ──────────────────────────────────────────
+if command -v docker >/dev/null 2>&1; then
+  docker ps --format '{{.Names}}' | while read -r name; do
+    [ -z "$name" ] && continue
+    rc=$(docker inspect "$name" --format '{{.RestartCount}}' 2>/dev/null || echo 0)
+    started=$(docker inspect "$name" --format '{{.State.StartedAt}}' 2>/dev/null || echo "")
+    if [ -n "$started" ] && [ "$rc" -gt 0 ]; then
+      # Only flag containers whose RestartCount climbed AND whose last
+      # start was inside the last hour (so a long-stable container with
+      # historical restarts doesn't keep alerting).
+      started_epoch=$(date -d "$started" +%s 2>/dev/null || echo 0)
+      now_epoch=$(date +%s)
+      age=$(( now_epoch - started_epoch ))
+      if [ "$rc" -ge "$RESTART_LIMIT" ] && [ "$age" -lt 3600 ]; then
+        send_alert warning "restart-$name" \
+          "container $name restarted $rc times" \
+          "Container $name on $(hostname) has RestartCount=$rc and last started ${age}s ago." \
+          "Last logs: docker logs --tail=50 $name"
+      fi
+    fi
+  done
+fi
+
+# ── Box A data-durability checks ──────────────────────────────────────
+if command -v docker >/dev/null 2>&1 && [ -d "${BOX_A_COMPOSE_DIR:-/opt/deepmarks-repo/deploy/box-a}" ]; then
+  load_box_a_env_var REDIS_PASSWORD
+
+  redis_container="$(docker ps --format '{{.Names}}' | grep -E '(^|-)redis-1$' | head -1 || true)"
+  if [ -n "$redis_container" ] && [ -n "${REDIS_PASSWORD:-}" ]; then
+    redis_info="$(docker exec "$redis_container" redis-cli -a "$REDIS_PASSWORD" --no-auth-warning INFO persistence 2>/dev/null | tr -d '\r' || true)"
+    if [ -z "$redis_info" ]; then
+      send_alert warning "redis-persistence-unreadable" \
+        "Redis persistence status unreadable on $(hostname)" \
+        "Could not run INFO persistence in $redis_container." \
+        "Check container health and REDIS_PASSWORD in /etc/deepmarks-monitoring.env or Box A .env."
+    else
+      rdb_status="$(printf '%s\n' "$redis_info" | awk -F: '$1=="rdb_last_bgsave_status" {print $2; exit}' || true)"
+      aof_status="$(printf '%s\n' "$redis_info" | awk -F: '$1=="aof_last_write_status" {print $2; exit}' || true)"
+      loading="$(printf '%s\n' "$redis_info" | awk -F: '$1=="loading" {print $2; exit}' || true)"
+      if [ "${rdb_status:-ok}" != "ok" ]; then
+        send_alert critical "redis-rdb-persistence" \
+          "Redis RDB persistence failing on $(hostname)" \
+          "rdb_last_bgsave_status=${rdb_status:-missing}." \
+          "Run: docker compose -f /opt/deepmarks-repo/deploy/box-a/compose.yml logs redis"
+      fi
+      if [ "${aof_status:-ok}" != "ok" ]; then
+        send_alert critical "redis-aof-persistence" \
+          "Redis AOF persistence failing on $(hostname)" \
+          "aof_last_write_status=${aof_status:-missing}." \
+          "Run: docker compose -f /opt/deepmarks-repo/deploy/box-a/compose.yml logs redis"
+      fi
+      if [ "${loading:-0}" != "0" ]; then
+        send_alert warning "redis-loading" \
+          "Redis is loading data on $(hostname)" \
+          "Redis INFO persistence reports loading=${loading:-missing}; writes may be delayed until load completes."
+      fi
+    fi
+  fi
+
+  blossom_container="$(docker ps --format '{{.Names}}' | grep -E '(^|-)blossom-server-1$' | head -1 || true)"
+  if [ -n "$blossom_container" ]; then
+    blossom_cmd="$(docker inspect "$blossom_container" --format '{{json .Config.Cmd}}' 2>/dev/null || true)"
+    # The image runs `deno task start` with the config path as a RELATIVE
+    # arg (Cmd=["config.yml"], cwd /app) — grepping for the absolute
+    # /app/config.yml false-positived a critical on every run (silently,
+    # until the 2026-07-17 cron-PATH fix let alerts deliver). The two
+    # checks below cover the real risks (config content, local-blob
+    # fallback growth); this one only asserts a config arg is present.
+    if ! printf '%s' "$blossom_cmd" | grep -q 'config\.yml'; then
+      send_alert critical "blossom-config-missing" \
+        "Blossom not started with a config file on $(hostname)" \
+        "Container $blossom_container command is: ${blossom_cmd:-unknown}." \
+        "Without the config file, blossom-server can fall back to local /app/data/blob storage."
+    fi
+
+    if ! docker exec "$blossom_container" sh -c 'test -r /app/config.yml && grep -Eq "backend:[[:space:]]*s3" /app/config.yml' >/dev/null 2>&1; then
+      send_alert critical "blossom-s3-config" \
+        "Blossom S3 backend config missing on $(hostname)" \
+        "Container $blossom_container does not expose /app/config.yml with storage.backend: s3." \
+        "Check deploy/box-a/blossom-config.yml and the compose volume mount."
+    fi
+
+    local_blob_mb="$(docker exec "$blossom_container" sh -c 'if [ -d /app/data/blobs ]; then du -sm /app/data/blobs 2>/dev/null | cut -f1; else echo 0; fi' 2>/dev/null || echo 0)"
+    if [ "${local_blob_mb:-0}" -ge "$BLOSSOM_LOCAL_BLOBS_MB_LIMIT" ] 2>/dev/null; then
+      send_alert critical "blossom-local-blobs" \
+        "Blossom local blob storage is ${local_blob_mb} MB on $(hostname)" \
+        "S3-backed Blossom should not accumulate large files in /app/data/blobs." \
+        "Run: docker exec $blossom_container du -sh /app/data/blobs"
+    fi
+  fi
+fi
+
+# ── Box A backup / restore-test systemd timers ────────────────────────
+backup_user="${BACKUP_SYSTEMD_USER:-dan}"
+backup_unit_dir="/home/${backup_user}/.config/systemd/user"
+if [ -d "$backup_unit_dir" ] && ls "$backup_unit_dir"/deepmarks-backup.timer >/dev/null 2>&1; then
+  backup_uid="$(id -u "$backup_user" 2>/dev/null || true)"
+  user_systemctl() {
+    if [ -z "${backup_uid:-}" ] || [ ! -d "/run/user/${backup_uid}" ]; then
+      return 1
+    fi
+    runuser -u "$backup_user" -- env XDG_RUNTIME_DIR="/run/user/${backup_uid}" systemctl --user "$@"
+  }
+
+  if ! user_systemctl list-timers deepmarks-backup.timer >/dev/null 2>&1; then
+    send_alert warning "backup-systemd-unreadable" \
+      "Cannot query Deepmarks backup timers on $(hostname)" \
+      "The monitor could not access ${backup_user}'s user systemd manager." \
+      "Check loginctl lingering and /run/user/${backup_uid:-<missing>}."
+  else
+    for timer in \
+      deepmarks-backup.timer \
+      deepmarks-backup-strfry.timer \
+      deepmarks-restore-test.timer \
+      deepmarks-object-storage-safety.timer
+    do
+      if [ -f "$backup_unit_dir/$timer" ] && ! user_systemctl is-active --quiet "$timer"; then
+        send_alert critical "timer-$timer" \
+          "Backup timer $timer inactive on $(hostname)" \
+          "$timer is installed but not active." \
+          "Run: systemctl --user status $timer"
+      fi
+    done
+
+    for svc in \
+      deepmarks-backup.service \
+      deepmarks-backup-strfry.service \
+      deepmarks-restore-test.service \
+      deepmarks-object-storage-safety.service
+    do
+      [ -f "$backup_unit_dir/$svc" ] || continue
+      if user_systemctl is-failed --quiet "$svc"; then
+        send_alert critical "service-$svc" \
+          "Backup service $svc failed on $(hostname)" \
+          "$svc is in failed state." \
+          "Run: journalctl --user -u $svc -n 120 --no-pager"
+        continue
+      fi
+
+      exit_ts="$(user_systemctl show "$svc" -p ExecMainExitTimestamp --value 2>/dev/null || true)"
+      if [ -n "$exit_ts" ]; then
+        exit_epoch="$(date -d "$exit_ts" +%s 2>/dev/null || echo 0)"
+        now_epoch="$(date +%s)"
+        age=$(( now_epoch - exit_epoch ))
+        if [ "$exit_epoch" -gt 0 ] && [ "$age" -gt "$BACKUP_SERVICE_MAX_AGE_SECONDS" ]; then
+          send_alert warning "stale-$svc" \
+            "Backup service $svc has not completed recently on $(hostname)" \
+            "Last completion: $exit_ts (${age}s ago)." \
+            "Run: systemctl --user list-timers deepmarks-*"
+        fi
+      fi
+    done
+  fi
+fi
+
+# ── voltage macaroon expiry (Box A only) ──────────────────────────────
+# Macaroons issued by LND don't carry a built-in expiry by default; they
+# expire when the LND-side caveats say so or when the operator rotates.
+# We can't inspect the macaroon contents from here without lncli, so the
+# simplest signal is "the file's mtime is older than N days" — which
+# usually means it was last rotated then. Operator can ignore this if
+# the macaroon is intentionally long-lived.
+if [ -n "${VOLTAGE_MACAROON_PATH:-}" ] && [ -f "$VOLTAGE_MACAROON_PATH" ]; then
+  age_days=$(( ( $(date +%s) - $(stat -c %Y "$VOLTAGE_MACAROON_PATH") ) / 86400 ))
+  threshold=$(( 365 - MACAROON_DAYS_WARN ))
+  if [ "$age_days" -ge "$threshold" ]; then
+    send_alert info "voltage-macaroon-age" \
+      "Voltage macaroon ${age_days} days old" \
+      "Consider rotating before LND-side TTL hits, or confirm this macaroon is configured as long-lived."
+  fi
+fi
+
+exit 0
